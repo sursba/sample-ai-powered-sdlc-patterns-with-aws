@@ -15,7 +15,6 @@ export class AmazonQConfluenceSourceStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props: CustomProps) {
         super(scope, id, props);
 
-        const region = cdk.Stack.of(this).region
         const awsAccountId = cdk.Stack.of(this).account;
 
         cdk.Stack.of(this).templateOptions.description = 'Amazon Q Business Confluence Data Source Stack';
@@ -54,16 +53,6 @@ export class AmazonQConfluenceSourceStack extends cdk.Stack {
 
         const confluencePolicy = new iam.ManagedPolicy(this, 'ConfluencePolicy', {
             statements: [
-                new iam.PolicyStatement({
-                    sid: 'AllowsAmazonQToGetS3Objects',
-                    actions: ['s3:GetObject'],
-                    resources: ['arn:aws:s3:::bucket/*'],
-                    conditions: {
-                        StringEquals: {
-                            'aws:ResourceAccount': awsAccountId,
-                        },
-                    },
-                }),
                 new iam.PolicyStatement({
                     sid: 'AllowsAmazonQToGetSecret',
                     actions: ['secretsmanager:GetSecretValue'],
