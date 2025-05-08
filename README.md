@@ -18,7 +18,7 @@ Amazon Bedrock
 
 3. Create a new directory and navigate to that directory in a terminal.
 
-4. Clone this repo
+4. Clone this repo.
 
 ```
 git clone https://github.com/aws-samples/sample-ai-powered-sdlc-patterns-with-aws
