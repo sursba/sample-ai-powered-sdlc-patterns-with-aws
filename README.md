@@ -8,7 +8,6 @@ Important: this patterns use various AWS services and there are costs associated
 [Amazon Q Developer](https://aws.amazon.com/q/developer/)
 [Amazon Q Business](https://aws.amazon.com/q/business/)
 [Amazon Bedrock](https://aws.amazon.com/bedrock/)
-Amazon Bedrock 
 
 ## Deployment Instructions
 
