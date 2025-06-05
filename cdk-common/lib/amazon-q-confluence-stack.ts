@@ -76,7 +76,10 @@ export class AmazonQConfluenceSourceStack extends cdk.Stack {
                         'qbusiness:BatchPutDocument',
                         'qbusiness:BatchDeleteDocument',
                     ],
-                    resources: [props.index.attrIndexArn],
+                    resources: [
+                        props.index.attrIndexArn,
+                        props.app.attrApplicationArn,
+                    ],
                 }),
                 new iam.PolicyStatement({
                     sid: 'AllowsAmazonQToIngestPrincipalMapping',
