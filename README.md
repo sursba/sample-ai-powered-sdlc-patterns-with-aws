@@ -1,4 +1,4 @@
-## AI-Powered Software Development with AWS - Patterns Collection
+## AI-Powered Software Development with AWS - Patterns/Agents Collection
 
 This repo contains AI-powered software development patterns showing how to integrate generative AI in different stages of software development lifecycle using Amazon Q Developer, Amazon Q Business and Amazon Bedrock. This collection of patterns demonstrates practical approaches for leveraging AWS's generative AI capabilities across the software development lifecycle (SDLC). The patterns are designed to help development teams enhance productivity, improve  quality, and accelerate delivery through AI-powered development.
 
