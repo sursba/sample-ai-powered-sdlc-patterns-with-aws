@@ -1,0 +1,10 @@
+boto3
+botocore
+blinker
+python-docx
+PyPDF2
+fpdf
+matplotlib
+numpy
+diagrams
+graphviz

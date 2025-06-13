@@ -1,0 +1,13 @@
+boto3
+pillow
+botocore
+blinker
+python-docx
+PyPDF2
+fpdf
+matplotlib
+numpy
+diagrams
+graphviz
+tenacity
+streamlit
