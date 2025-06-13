@@ -34,12 +34,96 @@ This solution is particularly valuable for organizations seeking to streamline t
 ![Solution Architecture](images/agent_arch.jpg "Solution Architecture")
 
 
-### Installation
-In order to install this solution, go to the [**cdk** folder](cdk/README.md), and run the required commands listed in that file.
+## Prerequisites
+
+- AWS CLI configured with appropriate permissions
+- Docker installed and running
+- Python 3.8 or later
+- Node.js 14 or later (for CDK)
+- npm install -g aws-cdk@latest
+
+- Before moving to cdk setup; In the functions/drawing_function folder, run below commands: 
+``` bash
+
+        #chmod +x make_pil_layer.sh
+        #chmod +x make_request_layer.sh
+        #./make_pil_layer.sh
+        #./make_request_layer.sh
+
+```
+
+## Setup
+
+1. Create and activate a virtual environment:
+
+```
+$ python3 -m venv .venv
+$ source .venv/bin/activate
+```
+
+2. Install dependencies:
+
+```
+$ pip install -r requirements.txt
+```
+
+3. Bootstrap your AWS environment (if not already done):
+
+```
+$ cdk bootstrap
+```
+
+## Deployment
+
+To deploy the stack:
+
+```
+$ cdk deploy
+```
+
+This will:
+- Build and push the Docker image to ECR
+- Create the Lambda function
+- Set up the S3 bucket
+- Create the Bedrock agent with the OpenAPI schema
+
+## Useful commands
+
+ * `cdk ls`          list all stacks in the app
+ * `cdk synth`       emits the synthesized CloudFormation template
+ * `cdk deploy`      deploy this stack to your default AWS account/region
+ * `cdk diff`        compare deployed stack with current state
+ * `cdk docs`        open CDK documentation
 
 
-### Streamlit UI
+
+### Streamlit UI for AWS SA AGENT
+
 Then, in any other terminal, navigate to the [**streamlit** folder](streamlit/README.md) to run the Streamlit UI app and execute architecture-related commands.
+
+**Create and activate a virtual environment:**
+```
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**Install Python dependencies**
+```
+pip install -r requirements.txt
+```
+
+**Set environment variables**
+```
+export AWS_DEFAULT_REGION=us-west-2
+export AGENT_ID=LUE8K3JCCP # WRITE YOUR BEDROCK AGENT ID
+# SET ALSO AWS CREDENTIALS
+```
+
+
+**Run the Streamlit app:**
+```
+streamlit run chatbot.py
+```
 
 
 ### Manual Setup
