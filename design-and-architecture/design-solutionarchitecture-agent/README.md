@@ -45,7 +45,8 @@ This solution is particularly valuable for organizations seeking to streamline t
 
 ## Setup
 
-1.
+1. Clone the repository:
+   
   ```
   git clone git@github.com:aws-samples/sample-ai-powered-sdlc-patterns-with-aws.git
 
