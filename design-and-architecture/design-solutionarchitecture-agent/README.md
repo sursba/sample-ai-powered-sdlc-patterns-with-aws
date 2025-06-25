@@ -113,10 +113,10 @@ This will:
 
 Then, in any other terminal, navigate to the [**streamlit** folder](streamlit/README.md) to run the Streamlit UI app and execute architecture-related commands.
 
-**Create and activate a virtual environment:**
 ```
-python3 -m venv .venv
-source .venv/bin/activate
+
+cd ../../streamlit/
+
 ```
 
 **Install Python dependencies**
@@ -127,7 +127,7 @@ pip install -r requirements.txt
 **Set environment variables**
 ```
 export AWS_DEFAULT_REGION=us-west-2
-export AGENT_ID=LUE8K3JCCP # WRITE YOUR BEDROCK AGENT ID
+export AGENT_ID= XXXXXXXX # WRITE YOUR BEDROCK AGENT ID
 # SET ALSO AWS CREDENTIALS
 ```
 
