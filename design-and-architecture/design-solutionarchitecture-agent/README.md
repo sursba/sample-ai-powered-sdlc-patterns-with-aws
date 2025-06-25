@@ -73,10 +73,10 @@ This solution is particularly valuable for organizations seeking to streamline t
    
 ``` bash
 
-        #chmod +x make_pil_layer.sh
-        #chmod +x make_request_layer.sh
-        #./make_pil_layer.sh
-        #./make_request_layer.sh
+   chmod +x make_pil_layer.sh
+   chmod +x make_request_layer.sh
+   ./make_pil_layer.sh
+   ./make_request_layer.sh
 
 ```
 
