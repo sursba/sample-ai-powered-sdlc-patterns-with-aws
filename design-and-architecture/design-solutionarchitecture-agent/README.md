@@ -42,7 +42,34 @@ This solution is particularly valuable for organizations seeking to streamline t
 - Node.js 14 or later (for CDK)
 - npm install -g aws-cdk@latest
 
-- Before moving to cdk setup; In the functions/drawing_function folder, run below commands: 
+
+## Setup
+
+1.
+  ```
+  git clone git@github.com:aws-samples/sample-ai-powered-sdlc-patterns-with-aws.git
+
+  cd sample-ai-powered-sdlc-patterns-with-aws/design-and-architecture/design-solutionarchitecture-agent
+
+  ```
+2. Create and activate a virtual environment:
+
+```
+ python3 -m venv .venv
+ source .venv/bin/activate
+ pip install -r requirements.txt
+ cd functions/drawing_function/
+
+```
+
+3. Install dependencies:
+
+```
+ pip install -r requirements.txt
+```
+
+4. Before moving to cdk setup; In the functions/drawing_function folder, run below commands:
+   
 ``` bash
 
         #chmod +x make_pil_layer.sh
@@ -52,22 +79,7 @@ This solution is particularly valuable for organizations seeking to streamline t
 
 ```
 
-## Setup
-
-1. Create and activate a virtual environment:
-
-```
-$ python3 -m venv .venv
-$ source .venv/bin/activate
-```
-
-2. Install dependencies:
-
-```
-$ pip install -r requirements.txt
-```
-
-3. Bootstrap your AWS environment (if not already done):
+5. Bootstrap your AWS environment (if not already done):
 
 ```
 $ cdk bootstrap
