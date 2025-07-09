@@ -14,7 +14,7 @@ This solution leverages [CloudWatch investigations](https://docs.aws.amazon.com/
 ## Solution Architecture
 
 
-![alt text](images/qaiopssample.png){width=60%}
+![alt text](images/qaiopssample.png)
 
 1. CloudWatch detects an anomaly or threshold breach which triggers an alarm
 2. CloudWatch Investigation is triggered automatically by CloudWatch Alarm (it can also be manually triggered by Operator)
@@ -133,18 +133,17 @@ This will ensure that all required dependencies, including aws-xray-sdk-core, ar
 
   For the moment it can be retrieved in the url when accessing your `Investigation Group Details`
 
-  ![alt text](images/investigationgroup.png){width=40%}
+  ![alt text](images/investigationgroup.png)
 
 4. Configure Slack channel integration (Optional)
   
      - In the Chat client integration section, choose `Select SNS topic`.
 
-   ![alt text](images/Slack1.png){width=40%}
+   ![alt text](images/Slack1.png)
 
       - Select the `SNS topic` to use for sending notifications about your investigations.
 
-   ![alt text](images/slack2.png){width=40%}
-
+   ![alt text](images/slack2.png)
 
 ### Generate the errors
 
@@ -164,7 +163,7 @@ To use the test events through the console:
 5. Choose a template name (e.g., 'StartAllLambdas')
 6. Copy one of the event objects from the test events file (e.g., the content of "StartAllLambdas")
      `{"action": "start"}`
-      ![alt text](images/eventjson.png){width=15%}
+      ![alt text](images/eventjson.png)
 7. Click `Save` and run test event
 
 #### Using AWS CLI
@@ -198,7 +197,7 @@ To invoke the Lambda function using the test events through AWS CLI:
    ```
 Lambdas will be invoked, and after a couple minutes, CloudWatch Alarms will be in Alarm state and Investigations will be created in CloudWatch. 
 
-![alt text](images/cloudwatchinvestigation.gif){width=60%}
+![alt text](images/cloudwatchinvestigation.gif)
 *The above video has been edit, CloudWatch Investigations take time to analyse and propose suggestions and hypothesis*
 
 ### Manually Create Investigations
@@ -206,38 +205,37 @@ You can manually launch investigations from telemetry data (such as CloudWatch m
 
 1. Go to `CloudWatch` and start a new investigation by chosing one of the alarms, and clicking on `⋮` in any of the available alarms.
 
-![alt text](images/investigation1.png){width=40%}
+![alt text](images/investigation1.png)
 
-![alt text](images/investigation2.png){width=40%}
+![alt text](images/investigation2.png)
 
 2. Under investigations, you should see your new `investigation group` and be able to access all the information
 
-![alt text](images/investigation10.png){width=40%}
+![alt text](images/investigation10.png)
 
 31. if you configured slack channel integration, the channel should receive messages of the new investigation *(optional)*
 
-![alt text](images/investigation9.png){width=40%}
-
+![alt text](images/investigation9.png)
 4. Under Investigations, choose `Create from log Insights` to add more information to the existing investigation
 
-![alt text](images/investigation3.png){width=40%}
+![alt text](images/investigation3.png)
 
 5. In the `Log Insights` query choose one of the existing lambda's log group
 
-![alt text](images/investigation6.png){width=40%}
+![alt text](images/investigation6.png)
 
 6. You should start seeing feedback from Amazon Q and suggestions, and be able to execute playbooks.
 - Additional information from log and other metrics will be proposed to be used, you can either accept or refuse to further help the analysis
 
-![alt text](images/investigation12.png){width=40%}
+![alt text](images/investigation12.png)
 
 - If a possible solution is found, actions will be suggested
 
-![alt text](images/investigation13.png){width=40%}
+![alt text](images/investigation13.png)
 
 - Should you accept the hypothesis the playbook can be run
 
-![alt text](images/investigation14.png){width=40%}
+![alt text](images/investigation14.png)
 
 For additional information, please visit [CloudWatch investigations](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Investigations.html)
 
