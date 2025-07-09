@@ -1,0 +1,18 @@
+{
+  "testEvents": {
+    "StartAllLambdas": {
+      "action": "start"
+    },
+    "StopAllLambdas": {
+      "action": "stop"
+    },
+    "StartWritingThrottlingErrorLambda": {
+      "action": "start",
+      "targetLambdas": ["WritingThrottlingLambda"]
+    },
+     "StartReadingThrottlingErrorLambda": {
+      "action": "start",
+      "targetLambdas": ["ReadThrottlingErrorLambda"]
+    }
+  }
+}
