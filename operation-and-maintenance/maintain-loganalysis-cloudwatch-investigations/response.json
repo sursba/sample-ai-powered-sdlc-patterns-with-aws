@@ -1,0 +1,1 @@
+{"statusCode":400,"body":"{\"message\":\"No valid rules specified. Check the rule names or use triggerAll: true to process all rules.\",\"availableRules\":[\"ConnectionErrorLambda\",\"ThrottlingErrorLambda\",\"MissingRecordsLambda\"]}"}

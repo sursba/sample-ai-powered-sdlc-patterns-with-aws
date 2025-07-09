@@ -1,0 +1,18 @@
+{
+  "StartAllLambdas": {
+    "action": "start",
+    "targetLambdas": ["Lambda1", "Lambda2", "Lambda3"]
+  },
+  "StopAllLambdas": {
+    "action": "stop",
+    "targetLambdas": ["Lambda1", "Lambda2", "Lambda3"]
+  },
+  "StartSingleLambda": {
+    "action": "start",
+    "targetLambdas": ["Lambda1"]
+  },
+  "StopSingleLambda": {
+    "action": "stop",
+    "targetLambdas": ["Lambda1"]
+  }
+}
