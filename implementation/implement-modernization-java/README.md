@@ -21,27 +21,460 @@ This repository contains a complete demonstration of Java application modernizat
 
 ## Solution Architecture
 
+### AWS Deployment Architecture
+
 ```mermaid
 graph TB
-    A[Java 8 Application] --> B[Amazon Q Developer]
-    B --> C[Java 17 Application]
-    C --> D[Java 21 Application]
+    subgraph "Development Environment"
+        DEV[👨‍💻 Developer]
+        Q[🤖 Amazon Q Developer]
+        DEV --> Q
+    end
     
-    E[Legacy Features] --> F[Modern Features]
-    E --> G[Performance Improvements]
-    E --> H[Security Enhancements]
+    subgraph "Source Code Management"
+        GIT[📁 Git Repository]
+        JAVA8[☕ Java 8 App]
+        JAVA17[☕ Java 17 App]
+        JAVA21[☕ Java 21 App]
+        Q --> GIT
+        GIT --> JAVA8
+        GIT --> JAVA17
+        GIT --> JAVA21
+    end
     
-    I[Testing Suite] --> J[Unit Tests]
-    I --> K[Integration Tests]
-    I --> L[BDD Tests]
+    subgraph "CI/CD Pipeline"
+        CB[🔧 AWS CodeBuild]
+        CP[🚀 AWS CodePipeline]
+        CR[📦 Amazon ECR]
+        GIT --> CB
+        CB --> CP
+        CB --> CR
+    end
     
-    M[Deployment] --> N[AWS App Runner]
-    M --> O[AWS Lambda]
-    M --> P[ECS Fargate]
-    M --> Q[Elastic Beanstalk]
+    subgraph "AWS Cloud Infrastructure"
+        subgraph "Compute Services"
+            AR[🏃 AWS App Runner]
+            LAMBDA[⚡ AWS Lambda]
+            ECS[🐳 Amazon ECS Fargate]
+            EB[🌱 Elastic Beanstalk]
+        end
+        
+        subgraph "Database & Storage"
+            RDS[🗄️ Amazon RDS]
+            S3[🪣 Amazon S3]
+        end
+        
+        subgraph "Monitoring & Security"
+            CW[📊 CloudWatch]
+            XRAY[🔍 AWS X-Ray]
+            IAM[🔐 AWS IAM]
+            WAF[🛡️ AWS WAF]
+        end
+        
+        subgraph "Networking"
+            VPC[🌐 Amazon VPC]
+            ALB[⚖️ Application Load Balancer]
+            CF[🌍 CloudFront]
+        end
+    end
+    
+    subgraph "External Users"
+        USER[👥 End Users]
+        API[📱 API Clients]
+    end
+    
+    %% Connections
+    CP --> AR
+    CP --> LAMBDA
+    CP --> ECS
+    CP --> EB
+    
+    AR --> RDS
+    LAMBDA --> RDS
+    ECS --> RDS
+    EB --> RDS
+    
+    AR --> S3
+    LAMBDA --> S3
+    ECS --> S3
+    EB --> S3
+    
+    CF --> ALB
+    ALB --> AR
+    ALB --> ECS
+    ALB --> EB
+    
+    USER --> CF
+    API --> CF
+    
+    CW --> AR
+    CW --> LAMBDA
+    CW --> ECS
+    CW --> EB
+    
+    XRAY --> AR
+    XRAY --> LAMBDA
+    XRAY --> ECS
+    XRAY --> EB
+    
+    IAM --> AR
+    IAM --> LAMBDA
+    IAM --> ECS
+    IAM --> EB
+    
+    WAF --> ALB
+    
+    %% Styling
+    classDef awsService fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef compute fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef database fill:#3F48CC,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef security fill:#DD344C,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef network fill:#8C4FFF,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef developer fill:#146EB4,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    
+    class AR,LAMBDA,ECS,EB,CB,CP compute
+    class RDS,S3 database
+    class IAM,WAF security
+    class VPC,ALB,CF network
+    class DEV,Q,USER,API developer
+```
+
+### Modernization Journey
+
+```mermaid
+graph LR
+    subgraph "Legacy Application"
+        J8[☕ Java 8<br/>Spring Boot 2.7<br/>javax.persistence<br/>Anonymous Classes<br/>Traditional Loops]
+    end
+    
+    subgraph "Amazon Q Developer Transformation"
+        Q1[🤖 AI Analysis]
+        Q2[🔄 Code Transform]
+        Q3[✅ Validation]
+        Q1 --> Q2 --> Q3
+    end
+    
+    subgraph "Intermediate Modernization"
+        J17[☕ Java 17<br/>Spring Boot 3.x<br/>jakarta.persistence<br/>Lambda Expressions<br/>Stream API<br/>Text Blocks]
+    end
+    
+    subgraph "Advanced Modernization"
+        J21[☕ Java 21<br/>Records<br/>Pattern Matching<br/>Switch Expressions<br/>Virtual Threads<br/>Sealed Classes]
+    end
+    
+    J8 --> Q1
+    Q3 --> J17
+    J17 --> Q1
+    Q3 --> J21
+    
+    %% Performance Metrics
+    J8 -.->|"3.2s startup<br/>512MB memory"| PERF1[📊 Baseline]
+    J17 -.->|"2.1s startup<br/>384MB memory"| PERF2[📊 34% Improvement]
+    J21 -.->|"1.8s startup<br/>320MB memory"| PERF3[📊 44% Improvement]
+    
+    classDef java fill:#ED8B00,stroke:#000000,stroke-width:2px,color:#FFFFFF
+    classDef ai fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef metrics fill:#146EB4,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    
+    class J8,J17,J21 java
+    class Q1,Q2,Q3 ai
+    class PERF1,PERF2,PERF3 metrics
+```
+
+### Detailed AWS Infrastructure Architecture
+
+```mermaid
+graph TB
+    subgraph Internet["🌐 Internet"]
+        USERS[👥 End Users]
+        MOBILE[📱 Mobile Apps]
+        WEB[🌐 Web Browsers]
+    end
+    
+    subgraph AWS["☁️ AWS Global Infrastructure"]
+        subgraph Edge["🌍 Edge Locations"]
+            CF[☁️ Amazon CloudFront<br/>CDN & Edge Caching]
+            R53[🌍 Route 53<br/>DNS Management]
+        end
+        
+        subgraph Region["🏢 AWS Region"]
+            subgraph AZ_A["📍 Availability Zone A"]
+                subgraph PubA["🌐 Public Subnet A"]
+                    ALB[⚖️ Application Load Balancer<br/>Traffic Distribution]
+                    NAT_A[🔄 NAT Gateway A<br/>Outbound Internet Access]
+                end
+                
+                subgraph PrivA["🔒 Private Subnet A"]
+                    ECS_A[🐳 ECS Fargate Task A<br/>Container Runtime]
+                    RDS_A[🗄️ RDS Primary<br/>PostgreSQL Database]
+                end
+            end
+            
+            subgraph AZ_B["📍 Availability Zone B"]
+                subgraph PubB["🌐 Public Subnet B"]
+                    NAT_B[🔄 NAT Gateway B<br/>Outbound Internet Access]
+                end
+                
+                subgraph PrivB["🔒 Private Subnet B"]
+                    ECS_B[🐳 ECS Fargate Task B<br/>Container Runtime]
+                    RDS_B[🗄️ RDS Standby<br/>Multi-AZ Replica]
+                end
+            end
+            
+            subgraph Serverless["⚡ Serverless Services"]
+                LAMBDA[⚡ AWS Lambda<br/>Event-Driven Functions]
+                AR[🏃 AWS App Runner<br/>Containerized Web Apps]
+                EB[🌱 Elastic Beanstalk<br/>Platform as a Service]
+            end
+            
+            subgraph Storage["💾 Storage Services"]
+                S3[🪣 Amazon S3<br/>Object Storage]
+                EFS[📁 Amazon EFS<br/>Shared File System]
+            end
+            
+            subgraph Container["🐳 Container Services"]
+                ECR[📦 Amazon ECR<br/>Container Registry]
+                ECS_CLUSTER[🎯 ECS Cluster<br/>Container Orchestration]
+            end
+            
+            subgraph CICD["🚀 CI/CD Pipeline"]
+                CC[📋 AWS CodeCommit<br/>Source Control]
+                CB[🔧 AWS CodeBuild<br/>Build Service]
+                CP[🚀 AWS CodePipeline<br/>Deployment Pipeline]
+                CD[📤 AWS CodeDeploy<br/>Application Deployment]
+            end
+            
+            subgraph Monitor["📊 Monitoring & Security"]
+                CW[📊 Amazon CloudWatch<br/>Monitoring & Logging]
+                XRAY[🔍 AWS X-Ray<br/>Distributed Tracing]
+                IAM[🔐 AWS IAM<br/>Identity & Access Management]
+                WAF[🛡️ AWS WAF<br/>Web Application Firewall]
+                SM[🔑 AWS Secrets Manager<br/>Secrets Management]
+                KMS[🔒 AWS KMS<br/>Key Management Service]
+            end
+            
+            subgraph Analytics["📈 Analytics & AI"]
+                CWI[📈 CloudWatch Insights<br/>Log Analytics]
+                QD[🤖 Amazon Q Developer<br/>AI Code Assistant]
+            end
+        end
+    end
+    
+    %% User Traffic Flow
+    USERS --> CF
+    MOBILE --> CF
+    WEB --> CF
+    CF --> R53
+    R53 --> ALB
+    
+    %% Load Balancer Distribution
+    ALB --> ECS_A
+    ALB --> ECS_B
+    ALB --> AR
+    ALB --> EB
+    
+    %% Database Connections
+    ECS_A --> RDS_A
+    ECS_B --> RDS_A
+    AR --> RDS_A
+    EB --> RDS_A
+    LAMBDA --> RDS_A
+    RDS_A -.->|Synchronous Replication| RDS_B
+    
+    %% Storage Connections
+    ECS_A --> S3
+    ECS_B --> S3
+    AR --> S3
+    EB --> S3
+    LAMBDA --> S3
+    ECS_A --> EFS
+    ECS_B --> EFS
+    
+    %% Container Registry
+    ECR --> ECS_A
+    ECR --> ECS_B
+    ECR --> AR
+    
+    %% CI/CD Flow
+    CC --> CB
+    CB --> CP
+    CP --> CD
+    CD --> ECS_CLUSTER
+    CD --> AR
+    CD --> EB
+    CB --> ECR
+    
+    %% Monitoring Connections
+    ECS_A --> CW
+    ECS_B --> CW
+    AR --> CW
+    EB --> CW
+    LAMBDA --> CW
+    ALB --> CW
+    RDS_A --> CW
+    
+    %% Tracing
+    ECS_A --> XRAY
+    ECS_B --> XRAY
+    AR --> XRAY
+    EB --> XRAY
+    LAMBDA --> XRAY
+    
+    %% Security
+    WAF --> ALB
+    IAM --> ECS_A
+    IAM --> ECS_B
+    IAM --> AR
+    IAM --> EB
+    IAM --> LAMBDA
+    SM --> ECS_A
+    SM --> ECS_B
+    SM --> AR
+    SM --> EB
+    SM --> LAMBDA
+    KMS --> RDS_A
+    KMS --> S3
+    
+    %% Analytics
+    CW --> CWI
+    QD -.->|Code Generation| CB
+    
+    %% Network Security
+    NAT_A --> ECS_A
+    NAT_B --> ECS_B
+    
+    %% Styling
+    classDef compute fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef database fill:#3F48CC,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef storage fill:#7AA116,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef network fill:#8C4FFF,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef security fill:#DD344C,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef cicd fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef monitoring fill:#759C3E,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef ai fill:#FF6600,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef users fill:#146EB4,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    
+    class ECS_A,ECS_B,ECS_CLUSTER,AR,EB,LAMBDA,ECR compute
+    class RDS_A,RDS_B database
+    class S3,EFS storage
+    class CF,R53,ALB,NAT_A,NAT_B network
+    class IAM,WAF,SM,KMS security
+    class CC,CB,CP,CD cicd
+    class CW,XRAY,CWI monitoring
+    class QD ai
+    class USERS,MOBILE,WEB users
+```
+### Deployment Architecture Comparison
+
+```mermaid
+graph TB
+    subgraph "Application Source"
+        APP[☕ Java Application<br/>Spring Boot]
+        DOCKER[🐳 Docker Image]
+        APP --> DOCKER
+    end
+    
+    subgraph "AWS App Runner Deployment"
+        AR_SVC[🏃 App Runner Service<br/>Automatic Scaling]
+        AR_LB[⚖️ Built-in Load Balancer]
+        AR_HTTPS[🔒 Automatic HTTPS]
+        DOCKER --> AR_SVC
+        AR_SVC --> AR_LB
+        AR_LB --> AR_HTTPS
+    end
+    
+    subgraph "AWS Lambda Deployment"
+        LAMBDA_FUNC[⚡ Lambda Function<br/>Serverless Runtime]
+        LAMBDA_API[🌐 API Gateway]
+        LAMBDA_TRIGGER[⚡ Event Triggers]
+        APP --> LAMBDA_FUNC
+        LAMBDA_FUNC --> LAMBDA_API
+        LAMBDA_FUNC --> LAMBDA_TRIGGER
+    end
+    
+    subgraph "Amazon ECS Fargate Deployment"
+        ECS_CLUSTER[🎯 ECS Cluster]
+        ECS_SERVICE[🐳 Fargate Service]
+        ECS_TASK[📋 Task Definition]
+        ECS_ALB[⚖️ Application Load Balancer]
+        DOCKER --> ECS_TASK
+        ECS_TASK --> ECS_SERVICE
+        ECS_SERVICE --> ECS_CLUSTER
+        ECS_CLUSTER --> ECS_ALB
+    end
+    
+    subgraph "Elastic Beanstalk Deployment"
+        EB_APP[🌱 EB Application]
+        EB_ENV[🏗️ Environment]
+        EB_EC2[💻 EC2 Instances]
+        EB_ALB[⚖️ Load Balancer]
+        APP --> EB_APP
+        EB_APP --> EB_ENV
+        EB_ENV --> EB_EC2
+        EB_EC2 --> EB_ALB
+    end
+    
+    subgraph "Shared Services"
+        RDS[🗄️ Amazon RDS<br/>PostgreSQL]
+        S3[🪣 Amazon S3<br/>File Storage]
+        CW[📊 CloudWatch<br/>Monitoring]
+        XRAY[🔍 X-Ray<br/>Tracing]
+    end
+    
+    %% Connections to shared services
+    AR_SVC --> RDS
+    AR_SVC --> S3
+    AR_SVC --> CW
+    AR_SVC --> XRAY
+    
+    LAMBDA_FUNC --> RDS
+    LAMBDA_FUNC --> S3
+    LAMBDA_FUNC --> CW
+    LAMBDA_FUNC --> XRAY
+    
+    ECS_SERVICE --> RDS
+    ECS_SERVICE --> S3
+    ECS_SERVICE --> CW
+    ECS_SERVICE --> XRAY
+    
+    EB_EC2 --> RDS
+    EB_EC2 --> S3
+    EB_EC2 --> CW
+    EB_EC2 --> XRAY
+    
+    %% Styling
+    classDef apprunner fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef lambda fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef ecs fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef beanstalk fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef shared fill:#3F48CC,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    classDef source fill:#146EB4,stroke:#232F3E,stroke-width:2px,color:#FFFFFF
+    
+    class AR_SVC,AR_LB,AR_HTTPS apprunner
+    class LAMBDA_FUNC,LAMBDA_API,LAMBDA_TRIGGER lambda
+    class ECS_CLUSTER,ECS_SERVICE,ECS_TASK,ECS_ALB ecs
+    class EB_APP,EB_ENV,EB_EC2,EB_ALB beanstalk
+    class RDS,S3,CW,XRAY shared
+    class APP,DOCKER source
 ```
 
 ### Modernization Steps
+
+1. **Analysis Phase**: Identify legacy code patterns in Java 8 application
+2. **Transformation Planning**: Create a roadmap for incremental modernization
+3. **Java 8 to Java 17 Migration**:
+   - Replace anonymous classes with lambda expressions
+   - Convert traditional loops to Stream API
+   - Update from javax to jakarta packages
+   - Implement modern language features
+4. **Java 17 to Java 21 Enhancement**:
+   - Implement records for data classes
+   - Add pattern matching and switch expressions
+   - Utilize virtual threads for concurrency
+   - Enhance error handling patterns
+5. **Testing & Validation**: Comprehensive testing across all versions
+6. **Deployment**: Configure multi-service deployment options
+7. **Performance Analysis**: Benchmark and compare metrics across versions
 
 1. **Analysis Phase**: Identify legacy code patterns in Java 8 application
 2. **Transformation Planning**: Create a roadmap for incremental modernization
