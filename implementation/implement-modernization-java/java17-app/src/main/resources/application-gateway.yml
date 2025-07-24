@@ -1,0 +1,104 @@
+# FIXED: Gateway Configuration Properties
+# Replaces Zuul configuration with Spring Cloud Gateway
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  
+  # Cloud Gateway Configuration
+  cloud:
+    gateway:
+      # Global CORS configuration
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: false
+      
+      # Route definitions (alternative to Java configuration)
+      routes:
+        - id: user-service-route
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=2
+            - AddRequestHeader=X-Gateway, gateway-service
+        
+        - id: order-service-route
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            - StripPrefix=2
+            - CircuitBreaker=myCircuitBreaker
+      
+      # Discovery configuration (if using service discovery)
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+    
+    # FIXED: Kubernetes configuration using fabric8-all
+    kubernetes:
+      discovery:
+        enabled: true
+        all-namespaces: false
+      config:
+        enabled: true
+        sources:
+          - name: gateway-config
+            namespace: default
+
+# Actuator configuration for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: gateway-service
+      version: 1.0.0
+
+# Logging configuration
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.kubernetes: INFO
+    com.teltacworldwide: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Circuit breaker configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      myCircuitBreaker:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
