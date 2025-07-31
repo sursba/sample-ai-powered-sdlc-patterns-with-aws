@@ -1,0 +1,114 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.env
+*.log
+*.pyc
+
+# Node
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.pnp/
+.pnp.js
+coverage/
+build/
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Generated assets
+frontend/src/assets/generated/*
+!frontend/src/assets/generated/.gitkeep
+
+# Lambda deployment package
+backend/lambda_deployment.zip
+backend/lambda_package/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AWS
+.aws/
+aws-exports.js
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+frontend/.env
+frontend/.env.production
+frontend/.env.mock
+backend/server.log
+
+# Test files
+test-*.sh
+direct-test.sh
+fix-cors.sh
+tests/
+
+# Redundant deployment scripts
+deploy-direct.sh
+deploy-frontend.sh
+deploy-no-docker.sh
+setup-aws-credentials.sh
+
+# Security scan reports
+grype-*.json
+grype-report.json
+grype-final-report.json
+*vulnerability-report.md
+SECURITY_VULNERABILITY_REPORT.md
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Development and test files
+test-*.html
+test-*.js
+*-test.html
+dev-server*.js
+simple-server.js
+react-dev-server.js
+working-dev-server.js
+start-dev-server.js
+frontend-server.log
+server_*.log
+frontend-startup.log
+frontend-python-server.log
+
+# Temporary scripts (not the main ones)
+start-frontend.sh
+start-with-env.sh
+restart-with-clean-credentials.sh
+serve-frontend.py
+# Markdown files (except README.md)
+*.md
+!README.md
