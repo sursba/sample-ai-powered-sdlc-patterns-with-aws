@@ -201,8 +201,6 @@ After deploying to AWS with CDK:
 
 This project includes an AWS CDK deployment that sets up the following infrastructure:
 
-![AWS Architecture](docs/images/ui-generator-aws-architecture.png)
-
 - **Frontend**: Hosted on S3 and served through CloudFront
 - **Backend**: Deployed as a Lambda function behind API Gateway
 - **Security**: IAM roles with least privilege principle
