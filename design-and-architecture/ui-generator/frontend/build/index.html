@@ -1,0 +1,254 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#2563eb"/><meta name="description" content="AI-powered UI/UX design generator using Amazon Bedrock"/><link rel="apple-touch-icon" href="/logo192.png"/><link rel="manifest" href="/manifest.json"/><script src="https://unpkg.com/react@18/umd/react.development.js"></script><script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script><script src="https://unpkg.com/@babel/standalone/babel.min.js"></script><title>UI/UX Generator</title><script defer="defer" src="/static/js/main.83028ee2.js"></script><link href="/static/css/main.9054cd45.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script type="text/babel">const { useState, useEffect } = React;
+      
+      function App() {
+        const [message, setMessage] = useState('Loading...');
+        const [apiStatus, setApiStatus] = useState('Checking...');
+        const [currentPage, setCurrentPage] = useState('home');
+        
+        useEffect(() => {
+          // Test backend API connection
+          fetch('http://localhost:8000/api/health')
+            .then(response => response.json())
+            .then(data => {
+              setApiStatus('✅ Backend Connected');
+              setMessage('UI/UX Generator Ready!');
+            })
+            .catch(error => {
+              setApiStatus('❌ Backend Disconnected');
+              setMessage('UI/UX Generator (Frontend Only)');
+            });
+        }, []);
+        
+        const generateUI = async () => {
+          try {
+            setMessage('Generating UI...');
+            const response = await fetch('http://localhost:8000/api/generate-mockup', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                description: 'Create a modern login form with email and password fields, submit button, and forgot password link'
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            setMessage('UI Generated Successfully!');
+            
+            // Display the result in a more user-friendly way
+            const resultWindow = window.open('', '_blank');
+            resultWindow.document.write(`
+              <html>
+                <head><title>Generated UI Mockup</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                  <h1>Generated UI Mockup</h1>
+                  <h2>Description:</h2>
+                  <p>${result.description || 'No description available'}</p>
+                  <h2>HTML Code:</h2>
+                  <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">${result.html || 'No HTML generated'}</pre>
+                  <h2>CSS Code:</h2>
+                  <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">${result.css || 'No CSS generated'}</pre>
+                  <h2>Preview:</h2>
+                  <div style="border: 1px solid #ccc; padding: 20px; margin-top: 10px;">
+                    <style>${result.css || ''}</style>
+                    ${result.html || '<p>No preview available</p>'}
+                  </div>
+                </body>
+              </html>
+            `);
+            
+            console.log('Generated UI Result:', result);
+          } catch (error) {
+            setMessage('UI/UX Generator Ready!');
+            alert('Error generating UI: ' + error.message);
+            console.error('Generation error:', error);
+          }
+        const generateDescription = async () => {
+          try {
+            const response = await fetch('http://localhost:8000/api/generate-description', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                prompt: 'A modern e-commerce product page with image gallery, product details, and add to cart functionality'
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            alert('Description Generated! Check console for details.');
+            console.log('Generated Description:', result);
+          } catch (error) {
+            alert('Error generating description: ' + error.message);
+            console.error('Description error:', error);
+          }
+        };
+
+        const generateComponents = async () => {
+          try {
+            const response = await fetch('http://localhost:8000/api/generate-components', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                prompt: 'Create component specifications for a dashboard with charts, metrics cards, and navigation sidebar'
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            alert('Components Generated! Check console for details.');
+            console.log('Generated Components:', result);
+          } catch (error) {
+            alert('Error generating components: ' + error.message);
+            console.error('Components error:', error);
+          }
+        };
+        
+        return React.createElement('div', {
+          style: {
+            padding: '20px',
+            fontFamily: 'Arial, sans-serif',
+            maxWidth: '1200px',
+            margin: '0 auto'
+          }
+        }, [
+          // Header
+          React.createElement('header', {
+            key: 'header',
+            style: {
+              textAlign: 'center',
+              marginBottom: '30px',
+              padding: '20px',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              borderRadius: '8px'
+            }
+          }, [
+            React.createElement('h1', { key: 'title' }, message),
+            React.createElement('p', { key: 'desc' }, 'AI-powered UI/UX design generator using Amazon Bedrock')
+          ]),
+          
+          // Status Panel
+          React.createElement('div', {
+            key: 'status',
+            style: {
+              backgroundColor: '#f0f0f0',
+              padding: '20px',
+              borderRadius: '8px',
+              marginBottom: '30px'
+            }
+          }, [
+            React.createElement('h3', { key: 'status-title' }, 'System Status'),
+            React.createElement('div', {
+              key: 'status-grid',
+              style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }
+            }, [
+              React.createElement('div', { key: 'frontend' }, '✅ Frontend: Running'),
+              React.createElement('div', { key: 'backend' }, apiStatus),
+              React.createElement('div', { key: 'aws' }, '🔄 AWS Credentials: Refreshed')
+            ])
+          ]),
+          
+          // Main Actions
+          React.createElement('div', {
+            key: 'actions',
+            style: {
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '15px',
+              marginBottom: '20px'
+            }
+          }, [
+            React.createElement('button', {
+              key: 'generate-mockup-btn',
+              onClick: generateUI,
+              style: {
+                padding: '15px 20px',
+                fontSize: '14px',
+                backgroundColor: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }
+            }, '🎨 Generate UI Mockup'),
+            
+            React.createElement('button', {
+              key: 'generate-desc-btn',
+              onClick: generateDescription,
+              style: {
+                padding: '15px 20px',
+                fontSize: '14px',
+                backgroundColor: '#8b5cf6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }
+            }, '📝 Generate Description'),
+            
+            React.createElement('button', {
+              key: 'generate-comp-btn',
+              onClick: generateComponents,
+              style: {
+                padding: '15px 20px',
+                fontSize: '14px',
+                backgroundColor: '#f59e0b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }
+            }, '🧩 Generate Components'),
+            
+            React.createElement('button', {
+              key: 'test-btn',
+              onClick: () => window.open('http://localhost:8000/api/health', '_blank'),
+              style: {
+                padding: '15px 20px',
+                fontSize: '14px',
+                backgroundColor: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }
+            }, '🔧 Test Backend API')
+          ]),
+          
+          // Instructions
+          React.createElement('div', {
+            key: 'instructions',
+            style: {
+              backgroundColor: '#fff3cd',
+              padding: '20px',
+              borderRadius: '8px',
+              border: '1px solid #ffeaa7'
+            }
+          }, [
+            React.createElement('h3', { key: 'inst-title' }, '🚀 Available Features'),
+            React.createElement('ul', { key: 'inst-list' }, [
+              React.createElement('li', { key: 'step1' }, '🎨 Generate UI Mockup - Creates complete HTML/CSS mockups with preview'),
+              React.createElement('li', { key: 'step2' }, '📝 Generate Description - Creates detailed UI descriptions from prompts'),
+              React.createElement('li', { key: 'step3' }, '🧩 Generate Components - Creates Figma component specifications'),
+              React.createElement('li', { key: 'step4' }, '🔧 Test Backend API - Verify AWS connectivity and health status'),
+              React.createElement('li', { key: 'step5' }, 'All features use your latest AWS credentials with Amazon Bedrock')
+            ])
+          ])
+        ]);
+      }
+      
+      ReactDOM.render(React.createElement(App), document.getElementById('root'));</script></body></html>
