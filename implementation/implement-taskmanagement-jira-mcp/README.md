@@ -4,6 +4,22 @@
 
 A Model Context Protocol (MCP) server for JIRA integration with Amazon Q Developer. This solution enables seamless natural language interactions with JIRA through Amazon Q Developer, allowing users to manage JIRA projects, issues, and workflows using conversational AI.
 
+##  Demo Video
+
+See the JIRA MCP Server in action! This 5-minute demo shows how to discover, analyze, and implement a real bug fix using natural language with Amazon Q Developer.
+
+**🎬 [Click here to watch the demo video](../../testing/demo.mp4)**
+
+![JIRA MCP Server Demo](../../testing/demo.mp4)
+
+*Watch how Amazon Q Developer transforms JIRA ticket workflow - from discovery to implementation without leaving your development environment.*
+
+**Demo Highlights:**
+- 🔍 **Natural Language Discovery**: "List my assigned JIRA tickets"
+- 🧠 **AI-Powered Analysis**: Get contextual code suggestions for bug fixes
+- ⚡ **Rapid Implementation**: Generate and fix code without context switching
+- 📝 **Seamless Updates**: Add comments back to JIRA tickets automatically
+
 ### Key Features
 
 - **Complete JIRA Integration**: Health check, list projects, create issues, search issues, and get issue details
