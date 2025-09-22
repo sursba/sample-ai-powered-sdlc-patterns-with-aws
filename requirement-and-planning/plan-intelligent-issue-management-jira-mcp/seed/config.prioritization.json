@@ -1,0 +1,15 @@
+{
+  "pk": "config#prioritization",
+  "weights": {
+    "severity": 0.35,
+    "slaRisk": 0.25,
+    "aging": 0.15,
+    "regression": 0.10,
+    "arrImpact": 0.15
+  },
+  "skill_match_bonus": 0.3,
+  "wip_penalty_factor": 0.5,
+  "continuity_bonus": 0.2,
+  "timezone_bonus": 0.1,
+  "notes": "Weights sum to 1.0; adjust per team policy."
+}
