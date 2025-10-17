@@ -498,7 +498,7 @@ Once configured, the following tools are available in Kiro:
   "mcpServers": {
     "project-kb": {
       "command": "uvx",
-      "args": ["project-kb-mcp-server@latest"],
+      "args": ["MCP server python package name"],
       "env": {
         "NODE_ENV": "production"
       },
