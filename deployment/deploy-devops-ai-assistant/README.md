@@ -346,7 +346,7 @@ Key components in the data flow:
 
 ## Demo of the Solution
 
-[![Demo](sample-ai-powered-sdlc-patterns-with-aws/deployment/deploy-devops-ai-assistant/demo/demo-devops-ai-assistant.mov)
+[Demo](sample-ai-powered-sdlc-patterns-with-aws/deployment/deploy-devops-ai-assistant/demo/demo-devops-ai-assistant.mov)
 
 ## Disclaimer
 
