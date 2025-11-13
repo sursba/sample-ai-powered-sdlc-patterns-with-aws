@@ -3,10 +3,6 @@
 A comprehensive Model Context Protocol (MCP) server for AWS CI/CD services (CodePipeline, CodeBuild, CodeDeploy) with 22 specialized tools, automatic IAM management, and production-ready security features.
 
 
-## Demo
-
-![CICD MCP Server Demo](./demo-cicd-mcp-server.mp4)
-
 ## Features
 
 - **22 Comprehensive CI/CD Tools**: 7+ tools each for CodePipeline, CodeBuild, and CodeDeploy
