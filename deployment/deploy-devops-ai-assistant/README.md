@@ -2,7 +2,8 @@
 
 ## Demo
 
-![DevOps AI Assistant Demo](demo/demo.gif)
+[![asciicast](demo/demo.png)](demo/demo.mp4)
+
 
 ## Introduction
 
