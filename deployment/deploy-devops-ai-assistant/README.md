@@ -2,7 +2,7 @@
 
 ## Demo
 
-[<img src="demo/demo.png"](demo/demo.mp4)
+[![asciicast](demo/demo.png)](demo/demo.mp4)
 
 
 ## Introduction
