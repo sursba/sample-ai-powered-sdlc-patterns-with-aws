@@ -2,7 +2,7 @@
 
 ## Demo
 
-[![asciicast](demo/demo.png)](demo/demo.mp4)
+https://github.com/user-attachments/assets/6f2a7021-5ec1-4831-b91b-43d68277537d
 
 
 ## Introduction
