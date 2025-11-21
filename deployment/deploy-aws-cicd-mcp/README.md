@@ -5,7 +5,7 @@ A comprehensive Model Context Protocol (MCP) server for AWS CI/CD services (Code
 
 ## Demo
 
-[![asciicast](demo/demo.png)](demo/demo.mp4)
+https://github.com/user-attachments/assets/2ca5a23f-d32c-4ee1-aa5e-8ccdd065e481
 
 
 ## Features
