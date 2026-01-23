@@ -1,0 +1,271 @@
+{
+  "name": "Real-Time Analytics Dashboard with Event-Driven Backend",
+  "description": "A full-stack serverless application with React frontend, event-driven microservices backend, real-time data streaming, and comprehensive monitoring",
+  
+  "architecture": {
+    "frontend": "React + Vite + TailwindCSS + Recharts",
+    "backend": "AWS SAM with multiple Lambda functions",
+    "database": "DynamoDB with GSIs",
+    "streaming": "Kinesis Data Streams + Firehose",
+    "api": "API Gateway REST + WebSocket APIs",
+    "auth": "Cognito User Pool",
+    "monitoring": "CloudWatch Dashboards + Alarms + X-Ray"
+  },
+
+  "requirements": [
+    {
+      "id": "1",
+      "category": "Infrastructure",
+      "description": "Create SAM template with nested stacks for modularity",
+      "tasks": [
+        "Main template.yaml with nested stack references",
+        "Separate template for API resources",
+        "Separate template for data processing resources", 
+        "Separate template for monitoring resources",
+        "Shared Lambda layer for common utilities"
+      ]
+    },
+    {
+      "id": "2", 
+      "category": "Authentication",
+      "description": "Implement Cognito authentication flow",
+      "tasks": [
+        "Cognito User Pool with email verification",
+        "Cognito App Client for frontend",
+        "Custom Lambda triggers for pre-signup validation",
+        "Post-confirmation trigger to create user profile in DynamoDB",
+        "API Gateway authorizer using Cognito"
+      ]
+    },
+    {
+      "id": "3",
+      "category": "Data Ingestion API",
+      "description": "REST API for ingesting analytics events",
+      "tasks": [
+        "POST /events endpoint for single event ingestion",
+        "POST /events/batch endpoint for batch ingestion (up to 100 events)",
+        "Request validation with JSON schema",
+        "Lambda function to validate and enrich events",
+        "Push validated events to Kinesis Data Stream",
+        "Return event IDs and processing status"
+      ]
+    },
+    {
+      "id": "4",
+      "category": "Real-Time Processing",
+      "description": "Kinesis stream processing pipeline",
+      "tasks": [
+        "Kinesis Data Stream with 2 shards",
+        "Lambda consumer for real-time aggregations",
+        "Compute running totals: events/minute, unique users, top pages",
+        "Store aggregations in DynamoDB with TTL",
+        "Kinesis Firehose for S3 archival (parquet format)",
+        "Dead letter queue for failed processing"
+      ]
+    },
+    {
+      "id": "5",
+      "category": "WebSocket API",
+      "description": "Real-time updates to connected dashboards",
+      "tasks": [
+        "API Gateway WebSocket API",
+        "Lambda for $connect - store connection ID in DynamoDB",
+        "Lambda for $disconnect - remove connection ID",
+        "Lambda for subscribe action - associate connection with metrics",
+        "Broadcast function to push updates to subscribed connections",
+        "Connection management with heartbeat/ping-pong"
+      ]
+    },
+    {
+      "id": "6",
+      "category": "Query API",
+      "description": "REST API for querying historical data",
+      "tasks": [
+        "GET /metrics/realtime - last 5 minutes aggregated",
+        "GET /metrics/hourly - last 24 hours by hour",
+        "GET /metrics/daily - last 30 days by day",
+        "GET /metrics/top-pages - top 10 pages by views",
+        "GET /metrics/user-sessions - active sessions count",
+        "Query parameters for filtering by date range, page, user segment"
+      ]
+    },
+    {
+      "id": "7",
+      "category": "DynamoDB Schema",
+      "description": "Design efficient DynamoDB tables",
+      "tasks": [
+        "Events table with PK=eventId, SK=timestamp",
+        "Aggregations table with PK=metricType#period, SK=timestamp",
+        "Connections table for WebSocket connection tracking",
+        "Users table with PK=userId for user profiles",
+        "GSI for querying by page URL",
+        "GSI for querying by user segment",
+        "TTL on aggregations (7 days) and connections (24 hours)"
+      ]
+    },
+    {
+      "id": "8",
+      "category": "Frontend - Core",
+      "description": "React dashboard application structure",
+      "tasks": [
+        "Vite + React + TypeScript setup",
+        "TailwindCSS configuration with custom theme",
+        "React Router for navigation",
+        "Zustand for state management",
+        "Axios instance with auth interceptor",
+        "WebSocket hook for real-time updates",
+        "Error boundary and loading states"
+      ]
+    },
+    {
+      "id": "9",
+      "category": "Frontend - Authentication",
+      "description": "Cognito integration in React",
+      "tasks": [
+        "Login page with email/password",
+        "Registration page with email verification",
+        "Forgot password flow",
+        "Protected route wrapper",
+        "Auth context with token refresh",
+        "Logout functionality"
+      ]
+    },
+    {
+      "id": "10",
+      "category": "Frontend - Dashboard",
+      "description": "Main analytics dashboard UI",
+      "tasks": [
+        "Header with user info and logout",
+        "Sidebar navigation",
+        "Real-time metrics cards (4 KPIs with live updates)",
+        "Line chart for events over time (last hour, minute granularity)",
+        "Bar chart for top pages",
+        "Pie chart for user segments",
+        "Data table with pagination for recent events",
+        "Date range picker for historical queries"
+      ]
+    },
+    {
+      "id": "11",
+      "category": "Frontend - Real-Time",
+      "description": "WebSocket integration for live updates",
+      "tasks": [
+        "WebSocket connection manager with auto-reconnect",
+        "Subscribe to metric updates on dashboard mount",
+        "Update charts in real-time without full refresh",
+        "Visual indicator for connection status",
+        "Graceful degradation when WebSocket unavailable"
+      ]
+    },
+    {
+      "id": "12",
+      "category": "Monitoring",
+      "description": "CloudWatch observability setup",
+      "tasks": [
+        "CloudWatch Dashboard with key metrics",
+        "Lambda duration and error rate widgets",
+        "Kinesis iterator age and throughput widgets",
+        "DynamoDB consumed capacity widgets",
+        "API Gateway latency and 4xx/5xx widgets",
+        "Alarm for Lambda errors > 5 in 5 minutes",
+        "Alarm for Kinesis iterator age > 60 seconds",
+        "Alarm for API Gateway 5xx > 10 in 5 minutes",
+        "SNS topic for alarm notifications"
+      ]
+    },
+    {
+      "id": "13",
+      "category": "X-Ray Tracing",
+      "description": "Distributed tracing setup",
+      "tasks": [
+        "Enable X-Ray on all Lambda functions",
+        "Enable X-Ray on API Gateway",
+        "Custom subsegments for DynamoDB operations",
+        "Custom subsegments for Kinesis operations",
+        "Annotations for filtering traces by user/page"
+      ]
+    },
+    {
+      "id": "14",
+      "category": "Testing - Backend",
+      "description": "Comprehensive backend tests",
+      "tasks": [
+        "Unit tests for all Lambda handlers (pytest)",
+        "Mock DynamoDB with moto",
+        "Mock Kinesis with moto",
+        "Integration tests using SAM local",
+        "Test event validation logic",
+        "Test aggregation calculations",
+        "Test WebSocket connection lifecycle"
+      ]
+    },
+    {
+      "id": "15",
+      "category": "Testing - Frontend",
+      "description": "Frontend testing suite",
+      "tasks": [
+        "Vitest setup for unit tests",
+        "React Testing Library for component tests",
+        "Test authentication flows",
+        "Test dashboard rendering with mock data",
+        "Test WebSocket reconnection logic",
+        "Playwright E2E tests for critical paths",
+        "E2E: Login -> View Dashboard -> Logout"
+      ]
+    },
+    {
+      "id": "16",
+      "category": "Deployment",
+      "description": "Deploy and validate",
+      "tasks": [
+        "sam build for all functions",
+        "sam deploy with parameter overrides",
+        "Deploy frontend to S3 + CloudFront",
+        "Configure CloudFront for SPA routing",
+        "Update frontend config with API endpoints",
+        "Smoke test: ingest event via API",
+        "Smoke test: verify event appears in dashboard",
+        "Smoke test: verify real-time update via WebSocket"
+      ]
+    },
+    {
+      "id": "17",
+      "category": "Documentation",
+      "description": "Comprehensive documentation",
+      "tasks": [
+        "README with architecture diagram (ASCII)",
+        "API documentation with example requests/responses",
+        "Local development setup guide",
+        "Deployment guide with prerequisites",
+        "Troubleshooting guide for common issues"
+      ]
+    }
+  ],
+
+  "success_criteria": [
+    "All SAM templates deploy without errors",
+    "User can register, verify email, and login",
+    "Events can be ingested via REST API",
+    "Real-time aggregations update within 5 seconds",
+    "Dashboard displays live metrics via WebSocket",
+    "Historical queries return correct data",
+    "All CloudWatch alarms are in OK state",
+    "X-Ray traces show end-to-end request flow",
+    "All backend unit tests pass",
+    "All frontend tests pass",
+    "E2E tests complete successfully",
+    "CloudFront serves frontend with HTTPS"
+  ],
+
+  "constraints": [
+    "Use Python 3.12 for all Lambda functions",
+    "Use TypeScript for frontend",
+    "All infrastructure as SAM templates (no CDK)",
+    "No external dependencies beyond AWS services",
+    "Frontend must work in Chrome, Firefox, Safari",
+    "API responses under 500ms p99",
+    "WebSocket updates under 2 seconds latency"
+  ],
+
+  "estimated_iterations": "30-50"
+}

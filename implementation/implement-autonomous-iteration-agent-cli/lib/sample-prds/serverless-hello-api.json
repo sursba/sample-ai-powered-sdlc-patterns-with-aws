@@ -1,0 +1,88 @@
+{
+  "name": "Serverless Hello API",
+  "description": "A simple AWS SAM API that demonstrates Ralph-Kiro's iterative development and deployment capabilities",
+
+  "requirements": [
+    {
+      "id": "1",
+      "category": "Project Setup",
+      "description": "Initialize AWS SAM project",
+      "tasks": [
+        "Create SAM project structure with template.yaml",
+        "Configure API Gateway with /hello endpoint",
+        "Set up Python 3.12 Lambda function"
+      ]
+    },
+    {
+      "id": "2",
+      "category": "Lambda Function",
+      "description": "Implement the hello endpoint",
+      "tasks": [
+        "Create handler that returns JSON response",
+        "Include timestamp in response",
+        "Include request ID for tracing",
+        "Handle errors gracefully with proper status codes"
+      ]
+    },
+    {
+      "id": "3",
+      "category": "Unit Tests",
+      "description": "Add pytest unit tests",
+      "tasks": [
+        "Create tests/unit/test_handler.py",
+        "Test successful response format",
+        "Test response contains required fields (message, timestamp, requestId)",
+        "Test error handling"
+      ]
+    },
+    {
+      "id": "4",
+      "category": "Deploy to AWS",
+      "description": "Build and deploy the stack",
+      "tasks": [
+        "Run sam build",
+        "Deploy with sam deploy --no-confirm-changeset --no-fail-on-empty-changeset",
+        "Use stack name: ralph-hello-api",
+        "Capture the API endpoint URL from outputs"
+      ]
+    },
+    {
+      "id": "5",
+      "category": "Integration Test",
+      "description": "Verify the deployed API works",
+      "tasks": [
+        "Call the deployed /hello endpoint with curl",
+        "Verify 200 status code",
+        "Verify response contains message, timestamp, requestId",
+        "Document the endpoint URL in README"
+      ]
+    },
+    {
+      "id": "6",
+      "category": "Documentation",
+      "description": "Create README with results",
+      "tasks": [
+        "Document what was built",
+        "Include the live API endpoint URL",
+        "Show example curl command and response",
+        "Add cleanup instructions (sam delete)"
+      ]
+    }
+  ],
+
+  "success_criteria": [
+    "All unit tests pass",
+    "Stack deploys successfully to AWS",
+    "API endpoint returns valid JSON with message, timestamp, requestId",
+    "README documents the live endpoint"
+  ],
+
+  "tech_stack": {
+    "runtime": "Python 3.12",
+    "framework": "AWS SAM",
+    "testing": "pytest",
+    "services": ["API Gateway", "Lambda"]
+  },
+
+  "estimated_iterations": "5-8"
+}
