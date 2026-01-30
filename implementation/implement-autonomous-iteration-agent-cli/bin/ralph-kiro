@@ -1,0 +1,565 @@
+#!/bin/bash
+# ralph-kiro - Ralph Wiggum loop orchestrator for Kiro CLI
+# Implements iterative, self-referential AI development loops
+#
+# Usage: ralph-kiro <command> [OPTIONS]
+#
+# Based on: https://github.com/ghuntley/how-to-ralph-wiggum
+
+set -euo pipefail
+
+# Version
+VERSION="1.0.0"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Default values
+MAX_ITERATIONS=50
+COMPLETION_PROMISE="DONE"
+AGENT="ralph"
+PROMPT=""
+STATE_FILE=".kiro/ralph-state.json"
+DELAY_SECONDS=2
+VERBOSE=false
+AWS_PROFILE=""
+
+# Check for updates (runs in background, non-blocking)
+check_for_updates() {
+    local install_dir="$HOME/RalphKiro"
+    
+    # Only check if installed via git clone
+    if [[ ! -d "$install_dir/.git" ]]; then
+        return
+    fi
+    
+    # Check at most once per day
+    local last_check_file="$install_dir/.last_update_check"
+    local now=$(date +%s)
+    
+    if [[ -f "$last_check_file" ]]; then
+        local last_check=$(cat "$last_check_file")
+        local diff=$((now - last_check))
+        # 86400 seconds = 24 hours
+        if [[ $diff -lt 86400 ]]; then
+            return
+        fi
+    fi
+    
+    # Update timestamp
+    echo "$now" > "$last_check_file" 2>/dev/null || true
+    
+    # Fetch latest (silently, in background)
+    (
+        cd "$install_dir"
+        git fetch origin master --quiet 2>/dev/null || git fetch origin main --quiet 2>/dev/null || true
+        
+        local local_commit=$(git rev-parse HEAD 2>/dev/null)
+        local remote_commit=$(git rev-parse origin/master 2>/dev/null || git rev-parse origin/main 2>/dev/null)
+        
+        if [[ -n "$local_commit" && -n "$remote_commit" && "$local_commit" != "$remote_commit" ]]; then
+            # Write update available flag
+            echo "$remote_commit" > "$install_dir/.update_available" 2>/dev/null || true
+        else
+            rm -f "$install_dir/.update_available" 2>/dev/null || true
+        fi
+    ) &
+}
+
+# Show update notice if available
+show_update_notice() {
+    local install_dir="$HOME/RalphKiro"
+    local update_file="$install_dir/.update_available"
+    
+    if [[ -f "$update_file" ]]; then
+        echo -e "${YELLOW}📦 Update available!${NC} Run: ${CYAN}cd ~/RalphKiro && git pull${NC}"
+        echo ""
+    fi
+}
+
+usage() {
+    echo -e "${CYAN}Ralph Wiggum Loop for Kiro CLI${NC} ${BLUE}v${VERSION}${NC}
+
+Autonomous AI development loops. Give it a task, it iterates until done.
+Named after Ralph Wiggum - cheerfully charges forward with unwavering optimism.
+
+${YELLOW}Usage:${NC}
+  ralph-kiro <command> [OPTIONS]
+
+${YELLOW}Commands:${NC}
+  init \"PROMPT\"           Start a new Ralph loop with the given prompt
+  iterate                 Continue iterating on an existing loop
+  status                  Show current loop status
+  reset                   Clear state and start fresh
+  setup                   Install ralph agent to ~/.kiro/agents/
+
+${YELLOW}Options:${NC}
+  --max-iterations N      Stop after N iterations (default: 50)
+  --max N                 Shorthand for --max-iterations
+  --aws-profile PROFILE   AWS profile for build/deploy (default: default)
+  --completion-promise S  Phrase that signals completion (default: DONE)
+  --agent NAME            Custom agent to use (default: ralph)
+  --delay SECONDS         Delay between iterations (default: 2)
+  --verbose               Show detailed output
+  --help                  Show this help message
+
+${YELLOW}Quick Start (Simple Prompt):${NC}
+  ralph-kiro init \"Build a todo app with React and local storage\"
+  ralph-kiro iterate
+
+${YELLOW}Quick Start (PRD File):${NC}
+  # Create prd.json with structured requirements, then:
+  ralph-kiro init \"Build the app described in prd.json\" --aws-profile dev
+  ralph-kiro iterate
+
+${YELLOW}Commands in Action:${NC}
+  ralph-kiro setup                        # First time: install agent
+  ralph-kiro init \"Your task\" --aws-profile dev  # Start new loop
+  ralph-kiro iterate                      # Continue working
+  ralph-kiro iterate --max 10             # Run up to 10 iterations
+  ralph-kiro status                       # Check progress
+  ralph-kiro reset                        # Start fresh
+
+${YELLOW}Sample PRDs:${NC}
+  ~/RalphKiro/src/lib/sample-prds/
+  - serverless-hello-api.json   (5-8 iterations, deploys to AWS)
+  - todo-app.json               (10-15 iterations, React frontend)
+  - analytics-dashboard.json    (30-50 iterations, full-stack serverless)
+
+${YELLOW}PRD Format Example:${NC}
+  {
+    \"name\": \"My Project\",
+    \"description\": \"What you're building\",
+    \"requirements\": [
+      {\"id\": \"1\", \"category\": \"Setup\", \"tasks\": [\"Task 1\", \"Task 2\"]},
+      {\"id\": \"2\", \"category\": \"Feature\", \"tasks\": [\"Task 3\", \"Task 4\"]}
+    ],
+    \"success_criteria\": [\"Tests pass\", \"Deploys successfully\"]
+  }
+
+${YELLOW}Tips:${NC}
+  - Use prd.json for complex projects with multiple requirements
+  - Simple prompts work great for quick tasks
+  - AWS profile persists across iterations (set once with init)
+  - Check progress.txt to see what Ralph has done
+"
+}
+
+# Get the package lib directory (where agent.json lives)
+get_package_lib_dir() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local lib_dir="$(dirname "$script_dir")/lib"
+    
+    if [[ -d "$lib_dir/agents" ]]; then
+        echo "$lib_dir"
+        return
+    fi
+    
+    local brazil_lib="${script_dir}/../private/lib"
+    if [[ -d "$brazil_lib/agents" ]]; then
+        echo "$brazil_lib"
+        return
+    fi
+    
+    echo "$script_dir/../lib"
+}
+
+cmd_setup() {
+    local lib_dir="$(get_package_lib_dir)"
+    local agent_src="$lib_dir/agents/ralph.json"
+    local agent_dest="$HOME/.kiro/agents/ralph.json"
+    
+    if [[ ! -f "$agent_src" ]]; then
+        echo -e "${RED}Error: Agent file not found at $agent_src${NC}"
+        echo "Package may not be installed correctly."
+        exit 1
+    fi
+    
+    mkdir -p "$HOME/.kiro/agents"
+    cp "$agent_src" "$agent_dest"
+    
+    echo -e "${GREEN}✓ Ralph agent installed to $agent_dest${NC}"
+    echo ""
+    echo "You can now run: ralph-kiro init \"Your task here\""
+}
+
+cmd_status() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        echo -e "${YELLOW}No active Ralph loop${NC}"
+        echo "Start one with: ralph-kiro init \"Your task\""
+        exit 0
+    fi
+    
+    echo -e "${CYAN}Ralph Loop Status${NC}"
+    echo "─────────────────────────────────"
+    
+    local active=$(jq -r '.active' "$STATE_FILE")
+    local iteration=$(jq -r '.iteration' "$STATE_FILE")
+    local max=$(jq -r '.maxIterations' "$STATE_FILE")
+    local promise=$(jq -r '.completionPromise' "$STATE_FILE")
+    local started=$(jq -r '.startedAt' "$STATE_FILE")
+    local aws_profile=$(jq -r '.awsProfile // "default"' "$STATE_FILE")
+    
+    if [[ "$active" == "true" ]]; then
+        echo -e "Status:      ${GREEN}Active${NC}"
+    else
+        local success=$(jq -r '.success // false' "$STATE_FILE")
+        if [[ "$success" == "true" ]]; then
+            echo -e "Status:      ${GREEN}Completed${NC}"
+        else
+            echo -e "Status:      ${YELLOW}Stopped${NC}"
+        fi
+    fi
+    
+    echo "Iteration:   $iteration / $max"
+    echo "AWS Profile: $aws_profile"
+    echo "Promise:     $promise"
+    echo "Started:     $started"
+    echo ""
+    echo -e "${BLUE}Prompt:${NC}"
+    jq -r '.prompt' "$STATE_FILE" | head -10
+    
+    if [[ "$active" == "true" ]]; then
+        echo ""
+        echo -e "Continue with: ${CYAN}ralph-kiro iterate${NC}"
+    fi
+}
+
+cmd_reset() {
+    if [[ -f "$STATE_FILE" ]]; then
+        rm "$STATE_FILE"
+        echo -e "${GREEN}✓ Ralph state cleared${NC}"
+    else
+        echo -e "${YELLOW}No state to clear${NC}"
+    fi
+    echo "Start fresh with: ralph-kiro init \"Your task\""
+}
+
+cmd_init() {
+    # Check if agent is installed
+    if [[ ! -f "$HOME/.kiro/agents/ralph.json" ]]; then
+        echo -e "${YELLOW}Ralph agent not found. Running setup...${NC}"
+        cmd_setup
+        echo ""
+    fi
+
+    if [[ -z "$PROMPT" ]]; then
+        echo -e "${RED}Error: Prompt is required${NC}"
+        echo "Usage: ralph-kiro init \"Your task description\""
+        exit 1
+    fi
+
+    # Check for existing active loop
+    if [[ -f "$STATE_FILE" ]]; then
+        local active=$(jq -r '.active' "$STATE_FILE" 2>/dev/null || echo "false")
+        if [[ "$active" == "true" ]]; then
+            echo -e "${YELLOW}Warning: An active Ralph loop already exists${NC}"
+            echo "Use 'ralph-kiro iterate' to continue, or 'ralph-kiro reset' to start fresh"
+            exit 1
+        fi
+    fi
+
+    # Ensure .kiro directory exists
+    mkdir -p .kiro
+
+    # Use provided AWS profile or default
+    local profile="${AWS_PROFILE:-default}"
+
+    # Initialize state file
+    cat > "$STATE_FILE" << EOF
+{
+  "active": true,
+  "iteration": 0,
+  "maxIterations": $MAX_ITERATIONS,
+  "completionPromise": "$COMPLETION_PROMISE",
+  "awsProfile": "$profile",
+  "prompt": $(echo "$PROMPT" | jq -Rs .),
+  "startedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "agent": "$AGENT"
+}
+EOF
+
+    echo -e "${GREEN}✓ Ralph loop initialized${NC}"
+    echo ""
+    echo -e "  ${BLUE}Prompt:${NC}      $(echo "$PROMPT" | head -c 60)..."
+    echo -e "  ${BLUE}AWS Profile:${NC} $profile"
+    echo -e "  ${BLUE}Max Iter:${NC}    $MAX_ITERATIONS"
+    echo ""
+    echo -e "Run ${CYAN}ralph-kiro iterate${NC} to start working"
+}
+
+run_iteration() {
+    local iteration=$1
+    local max_iterations=$2
+    local prompt=$3
+    local aws_profile=$4
+    
+    # Update state
+    jq ".iteration = $iteration" "$STATE_FILE" > "${STATE_FILE}.tmp"
+    mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    
+    local start_time=$(jq -r '.startedAt' "$STATE_FILE")
+    
+    echo -e "${CYAN}🔄 Ralph Iteration $iteration / $max_iterations${NC}"
+    echo ""
+    
+    # Build iteration prompt with context
+    local iter_prompt="[Ralph Loop - Iteration $iteration of $max_iterations]
+
+$prompt
+
+---
+RALPH METHODOLOGY:
+1. READ progress.txt (if exists) to see what's already done - don't re-explore
+2. CHOOSE the highest priority task (risky/architectural first, easy wins last)
+3. TAKE SMALL STEPS - one logical change per commit
+4. RUN FEEDBACK LOOPS before committing (tests, types, lint must pass)
+5. COMMIT after each completed task with clear message
+6. APPEND to progress.txt: task done, decisions made, files changed
+7. Output <promise>$COMPLETION_PROMISE</promise> ONLY when ALL tasks genuinely complete
+
+PRIORITIZATION ORDER:
+- Architectural decisions and core abstractions (HIGH)
+- Integration points between modules (HIGH)  
+- Unknown unknowns and spike work (HIGH)
+- Standard features and implementation (MEDIUM)
+- Polish, cleanup, and quick wins (LOW)
+
+ITERATION CONTEXT:
+- This is iteration $iteration of $max_iterations
+- Previous work persists in files, git history, and progress.txt
+- Quality over speed - small steps compound into big progress
+- AWS_PROFILE is set to '$aws_profile' - use this for any AWS CLI/SDK operations"
+
+    # Export AWS profile
+    export AWS_PROFILE="$aws_profile"
+
+    # Run kiro-cli and capture output
+    local output_file=$(mktemp)
+    
+    if $VERBOSE; then
+        kiro-cli chat --agent "$AGENT" --no-interactive --trust-all-tools "$iter_prompt" 2>&1 | tee "$output_file" || true
+    else
+        kiro-cli chat --agent "$AGENT" --no-interactive --trust-all-tools "$iter_prompt" 2>&1 | tee "$output_file" || true
+    fi
+    
+    local output=$(cat "$output_file")
+    rm -f "$output_file"
+    
+    echo ""
+    echo "─────────────────────────────────────────────────────────────────"
+    
+    # Check for completion promise
+    if echo "$output" | grep -qE "<promise>$COMPLETION_PROMISE</promise>"; then
+        return 0  # Completed
+    fi
+    
+    return 1  # Not completed
+}
+
+cmd_iterate() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        echo -e "${RED}Error: No Ralph loop found${NC}"
+        echo "Start one with: ralph-kiro init \"Your task\""
+        exit 1
+    fi
+    
+    # Load state
+    local prompt=$(jq -r '.prompt' "$STATE_FILE")
+    local current_iteration=$(jq -r '.iteration' "$STATE_FILE")
+    local stored_max=$(jq -r '.maxIterations' "$STATE_FILE")
+    local aws_profile=$(jq -r '.awsProfile // "default"' "$STATE_FILE")
+    local completion_promise=$(jq -r '.completionPromise' "$STATE_FILE")
+    AGENT=$(jq -r '.agent // "ralph"' "$STATE_FILE")
+    COMPLETION_PROMISE="$completion_promise"
+    
+    # Use command-line max if provided, otherwise use stored value
+    local max_iterations=${MAX_ITERATIONS:-$stored_max}
+    if [[ "$MAX_ITERATIONS" == "50" && "$stored_max" != "50" ]]; then
+        max_iterations=$stored_max
+    fi
+    
+    # Mark as active
+    jq '.active = true' "$STATE_FILE" > "${STATE_FILE}.tmp"
+    mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}           ${YELLOW}🔄 Ralph Wiggum Loop Continuing${NC}                  ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  ${BLUE}AWS Profile:${NC}        $aws_profile"
+    echo -e "  ${BLUE}Current Iteration:${NC}  $current_iteration"
+    echo -e "  ${BLUE}Max Iterations:${NC}     $max_iterations"
+    echo -e "  ${BLUE}Completion Promise:${NC} $COMPLETION_PROMISE"
+    echo ""
+    echo "─────────────────────────────────────────────────────────────────"
+    echo ""
+    
+    local iteration=$current_iteration
+    local start_time=$(date +%s)
+    
+    while [[ $iteration -lt $max_iterations ]]; do
+        iteration=$((iteration + 1))
+        
+        if run_iteration "$iteration" "$max_iterations" "$prompt" "$aws_profile"; then
+            # Completed!
+            local elapsed=$(($(date +%s) - start_time))
+            local elapsed_min=$((elapsed / 60))
+            local elapsed_sec=$((elapsed % 60))
+            
+            echo ""
+            echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${GREEN}║${NC}        ${GREEN}✅ Ralph Loop Complete!${NC}                            ${GREEN}║${NC}"
+            echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+            echo -e "  ${BLUE}Iterations:${NC}  $iteration"
+            echo -e "  ${BLUE}Duration:${NC}    ${elapsed_min}m ${elapsed_sec}s"
+            echo ""
+            
+            jq '.active = false | .completedAt = "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'" | .success = true' "$STATE_FILE" > "${STATE_FILE}.tmp"
+            mv "${STATE_FILE}.tmp" "$STATE_FILE"
+            
+            exit 0
+        fi
+        
+        if [[ $iteration -lt $max_iterations ]]; then
+            echo -e "${YELLOW}Continuing to next iteration in ${DELAY_SECONDS}s...${NC}"
+            sleep "$DELAY_SECONDS"
+            echo ""
+        fi
+    done
+    
+    # Max iterations reached
+    local elapsed=$(($(date +%s) - start_time))
+    local elapsed_min=$((elapsed / 60))
+    local elapsed_sec=$((elapsed % 60))
+    
+    echo ""
+    echo -e "${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║${NC}        ${YELLOW}⏸️  Iteration Limit Reached${NC}                         ${YELLOW}║${NC}"
+    echo -e "${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  ${BLUE}Iterations:${NC}  $iteration"
+    echo -e "  ${BLUE}Duration:${NC}    ${elapsed_min}m ${elapsed_sec}s"
+    echo ""
+    echo "Continue with: ralph-kiro iterate"
+    echo "Or increase limit: ralph-kiro iterate --max 100"
+    echo ""
+    
+    jq '.active = false | .iteration = '"$iteration"'' "$STATE_FILE" > "${STATE_FILE}.tmp"
+    mv "${STATE_FILE}.tmp" "$STATE_FILE"
+}
+
+# Run update check in background (non-blocking)
+check_for_updates
+
+# Parse command
+COMMAND=""
+if [[ $# -gt 0 ]]; then
+    case $1 in
+        init|iterate|status|reset|setup|--help|-h|help)
+            COMMAND="$1"
+            shift
+            ;;
+        --version|-v)
+            echo "ralph-kiro v${VERSION}"
+            exit 0
+            ;;
+        --*)
+            # Old style: ralph-kiro --option "prompt"
+            # Treat as init for backwards compatibility
+            COMMAND="init"
+            ;;
+        *)
+            # Assume it's a prompt for init (backwards compatibility)
+            COMMAND="init"
+            PROMPT="$1"
+            shift
+            ;;
+    esac
+fi
+
+# Show update notice for interactive commands
+case "${COMMAND:-help}" in
+    status|--help|-h|help|"")
+        show_update_notice
+        ;;
+esac
+
+# Parse remaining arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --max-iterations|--max)
+            MAX_ITERATIONS="$2"
+            shift 2
+            ;;
+        --completion-promise)
+            COMPLETION_PROMISE="$2"
+            shift 2
+            ;;
+        --agent)
+            AGENT="$2"
+            shift 2
+            ;;
+        --delay)
+            DELAY_SECONDS="$2"
+            shift 2
+            ;;
+        --aws-profile)
+            AWS_PROFILE="$2"
+            shift 2
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo -e "${RED}Unknown option: $1${NC}"
+            usage
+            exit 1
+            ;;
+        *)
+            if [[ -z "$PROMPT" ]]; then
+                PROMPT="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Execute command
+case $COMMAND in
+    init)
+        cmd_init
+        ;;
+    iterate)
+        cmd_iterate
+        ;;
+    status)
+        cmd_status
+        ;;
+    reset)
+        cmd_reset
+        ;;
+    setup)
+        cmd_setup
+        ;;
+    --help|-h|help|"")
+        usage
+        exit 0
+        ;;
+    *)
+        echo -e "${RED}Unknown command: $COMMAND${NC}"
+        usage
+        exit 1
+        ;;
+esac

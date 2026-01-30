@@ -1,5 +1,10 @@
 # DevOps AI Assistant: Streamline Your Development and Deployment Workflows
 
+## Demo
+
+https://github.com/user-attachments/assets/6f2a7021-5ec1-4831-b91b-43d68277537d
+
+
 ## Introduction
 
 The DevOps AI Assistant is a comprehensive tool that automates various aspects of DevOps processes, from generating Dockerfiles (using Finch) to creating infrastructure as code for both ECS and EKS using Terraform and CloudFormation.
@@ -342,6 +347,7 @@ Key components in the data flow:
 - **Streamlit UI**: Manages user interactions and displays results
 - **Finch**: Builds and tests generated Dockerfiles
 - **AWS services**: Interact with ECR, ECS, EKS, and other AWS resources as needed
+
 
 ## Disclaimer
 

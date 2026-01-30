@@ -1,0 +1,214 @@
+{
+  "name": "Modern Todo List Application",
+  "description": "A clean, responsive todo list app with local storage persistence, categories, priorities, and dark mode",
+
+  "requirements": [
+    {
+      "id": "1",
+      "category": "Project Setup",
+      "description": "Initialize React project with modern tooling",
+      "tasks": [
+        "Create React app with Vite and TypeScript",
+        "Configure TailwindCSS with custom color palette",
+        "Set up ESLint and Prettier",
+        "Create folder structure: components/, hooks/, types/, utils/"
+      ]
+    },
+    {
+      "id": "2",
+      "category": "Data Model",
+      "description": "Define TypeScript interfaces and state management",
+      "tasks": [
+        "Todo interface: id, title, description, completed, priority, category, dueDate, createdAt",
+        "Priority enum: low, medium, high",
+        "Category interface: id, name, color",
+        "Create Zustand store for todos and categories",
+        "Implement localStorage persistence with JSON serialization"
+      ]
+    },
+    {
+      "id": "3",
+      "category": "Core CRUD Operations",
+      "description": "Implement basic todo management",
+      "tasks": [
+        "Add new todo with title (required) and optional fields",
+        "Edit existing todo inline or via modal",
+        "Delete todo with confirmation",
+        "Toggle todo completion status",
+        "Bulk actions: mark all complete, delete completed"
+      ]
+    },
+    {
+      "id": "4",
+      "category": "UI Components",
+      "description": "Build reusable UI components",
+      "tasks": [
+        "Header with app title and dark mode toggle",
+        "TodoInput component with expandable form",
+        "TodoItem component with checkbox, title, priority badge, actions",
+        "TodoList component with empty state",
+        "CategoryBadge component with colored pill",
+        "PrioritySelector component (low/medium/high)",
+        "DatePicker component for due dates",
+        "ConfirmDialog component for delete actions"
+      ]
+    },
+    {
+      "id": "5",
+      "category": "Filtering & Sorting",
+      "description": "Implement todo organization features",
+      "tasks": [
+        "Filter by status: all, active, completed",
+        "Filter by category",
+        "Filter by priority",
+        "Sort by: created date, due date, priority, alphabetical",
+        "Search todos by title/description",
+        "Persist filter preferences in localStorage"
+      ]
+    },
+    {
+      "id": "6",
+      "category": "Categories Management",
+      "description": "Allow users to organize todos by category",
+      "tasks": [
+        "Default categories: Personal, Work, Shopping, Health",
+        "Add custom category with name and color picker",
+        "Edit category name and color",
+        "Delete category (reassign todos to 'Uncategorized')",
+        "Category sidebar or dropdown filter"
+      ]
+    },
+    {
+      "id": "7",
+      "category": "Due Dates & Reminders",
+      "description": "Time-based todo features",
+      "tasks": [
+        "Set due date when creating/editing todo",
+        "Visual indicator for overdue todos (red highlight)",
+        "Visual indicator for due today (yellow highlight)",
+        "Sort by due date option",
+        "Show relative time (e.g., 'Due in 2 days', 'Overdue by 3 days')"
+      ]
+    },
+    {
+      "id": "8",
+      "category": "Dark Mode",
+      "description": "Implement theme switching",
+      "tasks": [
+        "Detect system preference on first load",
+        "Toggle button in header",
+        "Persist preference in localStorage",
+        "Smooth transition between themes",
+        "Ensure all components respect theme"
+      ]
+    },
+    {
+      "id": "9",
+      "category": "Keyboard Shortcuts",
+      "description": "Power user features",
+      "tasks": [
+        "Press 'n' to focus new todo input",
+        "Press 'Escape' to close modals/cancel edit",
+        "Press 'Enter' to save todo",
+        "Press '/' to focus search",
+        "Show keyboard shortcuts help modal (press '?')"
+      ]
+    },
+    {
+      "id": "10",
+      "category": "Statistics Dashboard",
+      "description": "Show todo completion stats",
+      "tasks": [
+        "Total todos count",
+        "Completed vs active count",
+        "Completion percentage with progress bar",
+        "Todos by category breakdown",
+        "Todos by priority breakdown",
+        "Overdue count"
+      ]
+    },
+    {
+      "id": "11",
+      "category": "Drag & Drop",
+      "description": "Reorder todos manually",
+      "tasks": [
+        "Drag handle on each todo item",
+        "Visual feedback during drag",
+        "Persist custom order in localStorage",
+        "Disable drag when sorting is active"
+      ]
+    },
+    {
+      "id": "12",
+      "category": "Responsive Design",
+      "description": "Mobile-friendly layout",
+      "tasks": [
+        "Mobile-first CSS approach",
+        "Collapsible sidebar on mobile",
+        "Touch-friendly tap targets (min 44px)",
+        "Swipe to complete/delete on mobile",
+        "Test on 320px, 768px, 1024px breakpoints"
+      ]
+    },
+    {
+      "id": "13",
+      "category": "Accessibility",
+      "description": "WCAG 2.1 AA compliance",
+      "tasks": [
+        "Semantic HTML (main, nav, section, article)",
+        "ARIA labels on interactive elements",
+        "Focus management for modals",
+        "Color contrast ratio >= 4.5:1",
+        "Screen reader announcements for actions"
+      ]
+    },
+    {
+      "id": "14",
+      "category": "Testing",
+      "description": "Comprehensive test coverage",
+      "tasks": [
+        "Unit tests for Zustand store actions",
+        "Unit tests for utility functions (date formatting, filtering)",
+        "Component tests with React Testing Library",
+        "Test CRUD operations",
+        "Test filtering and sorting",
+        "Playwright E2E: add todo, complete, delete flow"
+      ]
+    },
+    {
+      "id": "15",
+      "category": "Polish & Documentation",
+      "description": "Final touches",
+      "tasks": [
+        "Loading skeleton while hydrating from localStorage",
+        "Smooth animations for add/remove todos",
+        "Empty state illustrations or messages",
+        "README with features, screenshots, setup instructions",
+        "Add favicon and meta tags"
+      ]
+    }
+  ],
+
+  "success_criteria": [
+    "App loads without errors",
+    "Can add, edit, delete, and complete todos",
+    "Todos persist after page refresh",
+    "Filtering and sorting work correctly",
+    "Categories can be managed",
+    "Dark mode toggles correctly",
+    "Responsive on mobile and desktop",
+    "All tests pass",
+    "Lighthouse accessibility score >= 90"
+  ],
+
+  "tech_stack": {
+    "framework": "React 18 with Vite",
+    "language": "TypeScript",
+    "styling": "TailwindCSS",
+    "state": "Zustand",
+    "testing": "Vitest + React Testing Library + Playwright",
+    "drag_drop": "dnd-kit or react-beautiful-dnd"
+  },
+
+  "estimated_iterations": "10-15"
+}
