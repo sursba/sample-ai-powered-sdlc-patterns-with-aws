@@ -1,0 +1,47 @@
+[
+  {
+    "pk": "user#alice",
+    "name": "Alice Nguyen",
+    "email": "alice@example.com",
+    "skills": ["payments", "backend", "java"],
+    "wipLimit": 5,
+    "currentWip": 2,
+    "timezone": "America/New_York"
+  },
+  {
+    "pk": "user#bob",
+    "name": "Bob Shah",
+    "email": "bob@example.com",
+    "skills": ["checkout", "frontend", "react"],
+    "wipLimit": 4,
+    "currentWip": 1,
+    "timezone": "America/Los_Angeles"
+  },
+  {
+    "pk": "user#carol",
+    "name": "Carol Diaz",
+    "email": "carol@example.com",
+    "skills": ["auth", "backend", "node"],
+    "wipLimit": 3,
+    "currentWip": 1,
+    "timezone": "America/Chicago"
+  },
+  {
+    "pk": "user#diego",
+    "name": "Diego Martins",
+    "email": "diego@example.com",
+    "skills": ["infra", "observability", "python"],
+    "wipLimit": 3,
+    "currentWip": 2,
+    "timezone": "America/Denver"
+  },
+  {
+    "pk": "user#evelyn",
+    "name": "Evelyn Park",
+    "email": "evelyn@example.com",
+    "skills": ["frontend", "auth", "ux"],
+    "wipLimit": 4,
+    "currentWip": 0,
+    "timezone": "America/Denver"
+  }
+]
