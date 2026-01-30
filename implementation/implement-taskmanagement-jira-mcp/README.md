@@ -195,7 +195,7 @@ Test the MCP server health endpoint:
 
 ```bash
 # Replace with your actual API Gateway URL
-curl https://hw2kv2wfm5.execute-api.us-east-1.amazonaws.com/dev/health
+curl <API Gateway URL?/health
 ```
 
 Expected response:
@@ -232,7 +232,7 @@ Test MCP server with authentication:
 ./get_fresh_token.sh
 
 # Test tools list
-curl -X POST https://hw2kv2wfm5.execute-api.us-east-1.amazonaws.com/dev/ \
+curl -X POST <API Gateway URL>/ \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'

@@ -1,0 +1,22 @@
+{
+"name": "plan-intelligent-issue-management-jira-mcp",
+"version": "0.1.0",
+"private": true,
+"engines": { "node": ">=18" },
+"scripts": {
+"build": "tsc -p cdk/tsconfig.json",
+"synth": "npm run build && npx cdk synth",
+"deploy": "npm run build && npx cdk deploy IssueMgmtJiraSecretsStack IssueMgmtDataStack IssueMgmtCoreStack IssueMgmtObservabilityStack",
+"destroy": "npx cdk destroy IssueMgmtObservabilityStack IssueMgmtCoreStack IssueMgmtDataStack IssueMgmtJiraSecretsStack",
+"seed": "AWS_REGION=us-east-1 node scripts/seed.js",
+"smoke:assign": "curl -s -X POST \"$(aws cloudformation describe-stacks --stack-name IssueMgmtCoreStack --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text)mcp/assign\" -H \"Content-Type: application/json\" -d '{\"tool\":\"assign.compute_recommendation\",\"params\":{\"description\":\"Payment processing bug in checkout flow\",\"component\":\"payments\",\"labels\":[\"urgent\",\"backend\"]}}' | jq ."
+},
+"devDependencies": {
+"aws-cdk-lib": "^2.151.0",
+"constructs": "^10.3.0",
+"ts-node": "^10.9.2",
+"typescript": "^5.5.4",
+"source-map-support": "^0.5.21",
+"aws-sdk": "^2.1691.0"
+}
+}

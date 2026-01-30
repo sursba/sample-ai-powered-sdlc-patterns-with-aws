@@ -1,0 +1,36 @@
+{
+  "name": "example-project",
+  "description": "Example PRD for Ralph loop",
+  "requirements": [
+    {
+      "id": "1",
+      "description": "Set up project structure with TypeScript",
+      "passes": false,
+      "priority": "high"
+    },
+    {
+      "id": "2", 
+      "description": "Implement core business logic",
+      "passes": false,
+      "priority": "high"
+    },
+    {
+      "id": "3",
+      "description": "Add unit tests with >80% coverage",
+      "passes": false,
+      "priority": "medium"
+    },
+    {
+      "id": "4",
+      "description": "Add API documentation",
+      "passes": false,
+      "priority": "low"
+    }
+  ],
+  "testCases": [
+    "Project builds without errors",
+    "All unit tests pass",
+    "TypeScript compiles with strict mode",
+    "README exists with setup instructions"
+  ]
+}

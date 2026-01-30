@@ -1,0 +1,12 @@
+{
+  "pk": "config#severity-matrix",
+  "defaults": {
+    "payments": "P1",
+    "checkout": "P1",
+    "auth": "P1",
+    "frontend": "P3",
+    "backend": "P2",
+    "infra": "P2"
+  },
+  "mappingNotes": "Used as guidance when classifying or missing severity."
+}
