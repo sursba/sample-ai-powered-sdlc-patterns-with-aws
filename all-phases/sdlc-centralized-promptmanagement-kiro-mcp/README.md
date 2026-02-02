@@ -1,13 +1,15 @@
 ## Introduction
 
-As artificial intelligence becomes integral to software development workflows, organizations face a growing challenge: ensuring consistent, high-quality AI interactions across their teams. Without standardized prompts, teams often struggle with inconsistent outputs, knowledge silos, and manual distribution of prompt updates.
+This pattern demonstrates **centralized prompt management** for organizations using AI-assisted development tools. Instead of each developer maintaining their own prompts, organizations can:
 
-This solution enables organizations to:
-- **Centralize knowledge** in version-controlled GitHub repositories
-- **Automate distribution** to all team members without configuration overhead
-- **Enable dynamic updates** that propagate automatically across Kiro instances
-- **Maintain governance** through standard Git workflows and permissions
-- **Scale effortlessly** as teams and prompt libraries grow
+- **Manage prompts centrally** in a single GitHub repository
+- **Distribute automatically** to all team members via MCP
+- **Update once, deploy everywhere** - changes propagate to all users
+- **Enforce consistency** across teams with standardized templates
+- **Maintain governance** through Git workflows and access controls
+
+The MCP server acts as a bridge between your central prompt repository and Kiro CLI, ensuring every team member has access to the latest organizational prompts without manual configuration.
+
 
 ## Solution Architecture
 
@@ -18,7 +20,7 @@ This solution enables organizations to:
 
 ┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
 │                  │      │                  │      │                  │
-│  GitHub Repo     │─────▶│   MCP Server     │─────▶│    Kiro IDE      │
+│  GitHub Repo     │─────▶│   MCP Server     │─────▶│    Kiro CLI      │
 │  (Prompts)       │      │   (Node.js)      │      │   (End Users)    │
 │                  │      │                  │      │                  │
 └──────────────────┘      └──────────────────┘      └──────────────────┘
@@ -148,7 +150,7 @@ Create or update `.kiro/settings/mcp.json`:
 
 ### Step 5: Restart Kiro
 
-Restart Kiro IDE to load the new MCP server configuration.
+Restart Kiro CLI to load the new MCP server configuration.
 
 ## Test
 
