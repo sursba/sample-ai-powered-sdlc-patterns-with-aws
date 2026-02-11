@@ -63,6 +63,17 @@ After completing each task, append to `progress.txt`:
 
 Keep entries concise. This file helps future iterations skip exploration.
 
+### 7. Update AGENTS.md - Compound Learning
+After each iteration, append new learnings to `AGENTS.md`:
+- **Patterns & Conventions**: Project structure, libraries used, coding patterns established
+- **Gotchas**: Things that tripped up the agent (deprecated APIs, config quirks, etc.)
+- **Recent Learnings**: What worked, what didn't, and why
+
+This is the agent's long-term semantic memory. Each iteration gets smarter because future iterations read this file first. Keep entries brief and factual.
+
+### 8. Validation Hooks
+If a `validate.sh` or `ralph-validate.sh` script exists in the project root, run it as an additional validation step before committing. This allows project-specific checks beyond standard tests/lint (e.g., `sam validate`, custom smoke tests).
+
 ## Completion Rules
 
 **CRITICAL**: Output `<promise>COMPLETION_PROMISE</promise>` ONLY when:
