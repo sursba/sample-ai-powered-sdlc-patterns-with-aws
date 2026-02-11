@@ -8,22 +8,23 @@ Based on [Geoffrey Huntley's Ralph](https://github.com/ghuntley/how-to-ralph-wig
 
 Ralph is a bash orchestrator that runs Kiro CLI in a loop, allowing the AI agent to work autonomously on a task until completion. The agent:
 
-1. Reads `progress.txt` to see what's already done
+1. Reads `progress.txt` and `AGENTS.md` to see what's already done and learned
 2. Chooses the highest priority task (not necessarily the first)
 3. Implements it with proper feedback loops (tests, types, lint)
 4. Commits and updates progress
-5. Continues until outputting a completion promise
+5. Appends learnings to `AGENTS.md` for compound learning across iterations
+6. Continues until outputting a completion promise
 
 ## Installation
 
-**Prerequisites:** [Kiro CLI](https://kiro.dev) must be installed (`kiro` command available)
+**Prerequisites:** [Kiro CLI](https://kiro.dev/docs/cli/installation/) must be installed (`kiro` command available)
 
 ```bash
 # Clone to home directory
-git clone https://github.com/aws-samples/sample-ai-powered-sdlc-patterns-with-aws.git ~/sample-ai-powered-sdlc-patterns-with-aws
+git clone https://github.com/abhikarode/ralph-kiro.git ~/ralph-kiro
 
 # Add to PATH permanently
-echo 'export PATH="$HOME/sample-ai-powered-sdlc-patterns-with-aws/implementation/implement-autonomous-iteration-agent-cli/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
+echo 'export PATH="$HOME/ralph-kiro/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
 source ~/.zshrc
 
 # Install the Ralph agent to Kiro CLI
@@ -36,12 +37,25 @@ ralph-kiro setup
 # Navigate to your project
 cd ~/your-project
 
-# Create a prd.json or prd.md with requirements (see examples below)
+# Option 1: Simple prompt
+ralph-kiro init "Build a todo app with React and local storage"
+ralph-kiro iterate
 
-# Run Ralph loop
-ralph-kiro init "Build the app described in prd.json"
-ralph-kiro iterate           # Continue iterating
-ralph-kiro status            # Check progress
+# Option 2: Generate a PRD from natural language
+ralph-kiro plan "I want a serverless API with DynamoDB that handles user registration"
+# Review the generated prd.json, then:
+ralph-kiro init "Build the application described in prd.json"
+ralph-kiro iterate
+
+# Option 3: Write your own prd.json or prd.md
+ralph-kiro init "Build the app described in prd.md"
+ralph-kiro iterate
+
+# Check progress at any time
+ralph-kiro status
+
+# Run a judge review (read-only assessment)
+ralph-kiro review
 ```
 
 ## AWS Profile Support
@@ -169,10 +183,12 @@ ralph-kiro iterate
 | Command | Description |
 |---------|-------------|
 | `ralph-kiro setup` | Install ralph agent to ~/.kiro/agents/ |
+| `ralph-kiro plan "description"` | Generate prd.json from natural language |
 | `ralph-kiro init "task"` | Start a new project |
 | `ralph-kiro init "task" --aws-profile NAME` | Start with specific AWS profile |
 | `ralph-kiro iterate` | Continue working |
 | `ralph-kiro iterate --max 5` | Run up to 5 iterations |
+| `ralph-kiro review` | Judge pass - assess progress without changes |
 | `ralph-kiro status` | Check progress |
 | `ralph-kiro reset` | Start fresh |
 
@@ -181,6 +197,8 @@ ralph-kiro iterate
 ```
 --max-iterations N      Stop after N iterations (default: 50)
 --aws-profile NAME      AWS profile for deployments (default: default)
+--no-branch             Skip auto-creating a feature branch on init
+--max-cost DOLLARS      Stop loop when estimated cost exceeds this amount
 --completion-promise S  Phrase that signals completion (default: DONE)
 --agent NAME            Custom agent to use (default: ralph)
 --delay SECONDS         Delay between iterations (default: 2)
@@ -193,6 +211,27 @@ ralph-kiro iterate
 
 ### Progress File
 Create `progress.txt` in your project. The agent reads it each iteration to avoid re-exploring completed work.
+
+### AGENTS.md - Compound Learning
+Ralph auto-creates an `AGENTS.md` file on init. The agent appends patterns, conventions, and gotchas after each iteration. This is the project's long-term memory - each iteration gets smarter because future iterations read accumulated learnings. Inspired by the compound learning approach described by [Addy Osmani](https://addyosmani.com/blog/self-improving-agents/).
+
+### Branch Isolation
+By default, `ralph-kiro init` creates a `ralph/<timestamp>` feature branch so all work happens off your main branch. Use `--no-branch` to skip this.
+
+### Stall Detection
+If no new commits are made for 3 consecutive iterations, Ralph auto-stops and suggests running `ralph-kiro review` to diagnose the issue. Prevents the agent from spinning its wheels.
+
+### Cost Tracking
+Each iteration logs estimated cost. Use `--max-cost 5.00` to set a budget limit. Cost is displayed in status and completion output.
+
+### Validation Hooks
+Create a `validate.sh` or `ralph-validate.sh` in your project root for custom validation beyond tests/lint (e.g., `sam validate`, smoke tests). The agent runs it before each commit.
+
+### PRD Generation
+Use `ralph-kiro plan "description"` to auto-generate a structured `prd.json` from natural language. Review it, then feed it to `ralph-kiro init`.
+
+### Judge Mode
+Run `ralph-kiro review` for a read-only assessment of progress against requirements. Useful as a checkpoint before declaring done.
 
 ### Structured PRDs
 Use `prd.json` (structured JSON) or `prd.md` (human-readable Markdown) with clear requirements and success criteria. Both formats work identically - choose whichever is easier for you to write and maintain.
@@ -214,15 +253,15 @@ Use `prd.json` (structured JSON) or `prd.md` (human-readable Markdown) with clea
 
 ## Package Contents
 
-- `bin/ralph-kiro` - Main orchestrator script
-- `lib/agents/ralph.json` - Kiro agent configuration
+- `bin/ralph-kiro` - Main orchestrator script (v2.0)
+- `lib/agents/ralph.json` - Kiro agent configuration with AGENTS.md support
 - `lib/steering/ralph-methodology.md` - Methodology documentation
 - `lib/templates/prd-example.json` - PRD template
 
 ## Uninstall
 
 ```bash
-rm -rf ~/sample-ai-powered-sdlc-patterns-with-aws/implementation/implement-autonomous-iteration-agent-cli ~/.kiro/agents/ralph.json
+rm -rf ~/ralph-kiro ~/.kiro/agents/ralph.json
 # Remove the PATH line from ~/.zshrc
 ```
 
@@ -233,6 +272,4 @@ rm -rf ~/sample-ai-powered-sdlc-patterns-with-aws/implementation/implement-auton
 
 ## License
 
-This library is licensed under the MIT-0 License. See the LICENSE file.
-
-
+MIT

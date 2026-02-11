@@ -1,36 +1,41 @@
 {
-  "name": "example-project",
-  "description": "Example PRD for Ralph loop",
-  "requirements": [
+  "name": "Example PRD",
+  "description": "Template for structured PRD with passes tracking",
+  "items": [
     {
       "id": "1",
-      "description": "Set up project structure with TypeScript",
+      "description": "Set up project structure with TypeScript config",
       "passes": false,
-      "priority": "high"
+      "priority": "high",
+      "notes": "Architectural foundation - do first"
     },
     {
       "id": "2", 
-      "description": "Implement core business logic",
+      "description": "Implement core data models",
       "passes": false,
-      "priority": "high"
+      "priority": "high",
+      "notes": "Core abstractions needed by other features"
     },
     {
       "id": "3",
-      "description": "Add unit tests with >80% coverage",
+      "description": "Add API endpoints with validation",
       "passes": false,
-      "priority": "medium"
+      "priority": "medium",
+      "notes": "Standard feature work"
     },
     {
       "id": "4",
-      "description": "Add API documentation",
+      "description": "Write unit tests with >80% coverage",
       "passes": false,
-      "priority": "low"
+      "priority": "medium",
+      "notes": "Feedback loop requirement"
+    },
+    {
+      "id": "5",
+      "description": "Add error handling and logging",
+      "passes": false,
+      "priority": "low",
+      "notes": "Polish work - do last"
     }
-  ],
-  "testCases": [
-    "Project builds without errors",
-    "All unit tests pass",
-    "TypeScript compiles with strict mode",
-    "README exists with setup instructions"
   ]
 }

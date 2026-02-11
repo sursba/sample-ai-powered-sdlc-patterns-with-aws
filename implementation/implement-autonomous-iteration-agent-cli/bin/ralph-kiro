@@ -9,7 +9,10 @@
 set -euo pipefail
 
 # Version
-VERSION="1.0.0"
+VERSION="2.0.0"
+
+# Stall detection
+STALL_THRESHOLD=3  # Stop if no commits for N consecutive iterations
 
 # Colors for output
 RED='\033[0;31m'
@@ -28,6 +31,8 @@ STATE_FILE=".kiro/ralph-state.json"
 DELAY_SECONDS=2
 VERBOSE=false
 AWS_PROFILE=""
+NO_BRANCH=false
+MAX_COST=""
 
 # Check for updates (runs in background, non-blocking)
 check_for_updates() {
@@ -82,6 +87,38 @@ show_update_notice() {
     fi
 }
 
+# Telemetry - send metrics to internal metrics server (non-blocking)
+TELEMETRY_ENDPOINT="https://metrics.aire.ags.aws.dev/metrics"
+TELEMETRY_ENABLED=true
+
+send_metric() {
+    local event="$1"
+    local data="$2"
+    
+    if [[ "$TELEMETRY_ENABLED" != "true" ]]; then
+        return
+    fi
+    
+    local user=$(whoami)
+    local timestamp=$(date +%s)
+    local hostname=$(hostname -s 2>/dev/null || echo "unknown")
+    
+    (
+        curl -L -s -b ~/.midway/cookie -X POST \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"server_name\": \"ralph-kiro\",
+                \"version\": \"${VERSION}\",
+                \"event\": \"${event}\",
+                \"user\": \"${user}\",
+                \"hostname\": \"${hostname}\",
+                \"timestamp\": \"${timestamp}\",
+                \"data\": ${data}
+            }" \
+            "$TELEMETRY_ENDPOINT" >/dev/null 2>&1
+    ) &
+}
+
 usage() {
     echo -e "${CYAN}Ralph Wiggum Loop for Kiro CLI${NC} ${BLUE}v${VERSION}${NC}
 
@@ -93,7 +130,9 @@ ${YELLOW}Usage:${NC}
 
 ${YELLOW}Commands:${NC}
   init \"PROMPT\"           Start a new Ralph loop with the given prompt
+  plan \"DESCRIPTION\"      Generate a prd.json from a natural language description
   iterate                 Continue iterating on an existing loop
+  review                  Run a judge pass - evaluate progress without making changes
   status                  Show current loop status
   reset                   Clear state and start fresh
   setup                   Install ralph agent to ~/.kiro/agents/
@@ -105,6 +144,8 @@ ${YELLOW}Options:${NC}
   --completion-promise S  Phrase that signals completion (default: DONE)
   --agent NAME            Custom agent to use (default: ralph)
   --delay SECONDS         Delay between iterations (default: 2)
+  --no-branch             Skip auto-creating a feature branch on init
+  --max-cost DOLLARS      Stop loop when estimated cost exceeds this amount
   --verbose               Show detailed output
   --help                  Show this help message
 
@@ -186,6 +227,90 @@ cmd_setup() {
     echo -e "${GREEN}✓ Ralph agent installed to $agent_dest${NC}"
     echo ""
     echo "You can now run: ralph-kiro init \"Your task here\""
+}
+
+cmd_plan() {
+    if [[ -z "$PROMPT" ]]; then
+        echo -e "${RED}Error: Description is required${NC}"
+        echo "Usage: ralph-kiro plan \"I want a serverless API that...\""
+        exit 1
+    fi
+
+    # Check if agent is installed
+    if [[ ! -f "$HOME/.kiro/agents/ralph.json" ]]; then
+        echo -e "${YELLOW}Ralph agent not found. Running setup...${NC}"
+        cmd_setup
+        echo ""
+    fi
+
+    echo -e "${CYAN}📋 Generating PRD from description...${NC}"
+    echo ""
+
+    local plan_prompt="Generate a structured prd.json file from this description. Output ONLY the JSON file content, no explanation.
+
+Description: $PROMPT
+
+The prd.json should follow this format:
+{
+  \"name\": \"Project Name\",
+  \"description\": \"What the project does\",
+  \"requirements\": [
+    {\"id\": \"1\", \"category\": \"Setup\", \"tasks\": [\"task1\", \"task2\"], \"priority\": \"high\"},
+    {\"id\": \"2\", \"category\": \"Core\", \"tasks\": [\"task3\"], \"priority\": \"high\"},
+    {\"id\": \"3\", \"category\": \"Features\", \"tasks\": [\"task4\"], \"priority\": \"medium\"}
+  ],
+  \"success_criteria\": [\"criterion 1\", \"criterion 2\"],
+  \"tech_stack\": [\"technology choices\"]
+}
+
+Write the JSON to prd.json in the current directory."
+
+    kiro-cli chat --agent "$AGENT" --no-interactive --trust-all-tools "$plan_prompt" 2>&1 || true
+
+    if [[ -f "prd.json" ]]; then
+        echo ""
+        echo -e "${GREEN}✓ PRD generated: prd.json${NC}"
+        echo ""
+        echo "Review it, then run:"
+        echo -e "  ${CYAN}ralph-kiro init \"Build the application described in prd.json\"${NC}"
+    else
+        echo -e "${YELLOW}PRD file was not created. Check the output above.${NC}"
+    fi
+}
+
+cmd_review() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        echo -e "${RED}Error: No Ralph loop found${NC}"
+        echo "Start one with: ralph-kiro init \"Your task\""
+        exit 1
+    fi
+
+    local prompt=$(jq -r '.prompt' "$STATE_FILE")
+
+    echo -e "${CYAN}🔍 Running judge review...${NC}"
+    echo ""
+
+    local review_prompt="You are a JUDGE reviewing the current state of this project. Do NOT make any changes.
+
+ORIGINAL REQUIREMENTS:
+$prompt
+
+YOUR TASK:
+1. Read progress.txt to see what has been completed
+2. Read prd.json or prd.md if they exist to see the full requirements
+3. Review the codebase to assess current state
+4. Compare against the original requirements and success criteria
+
+OUTPUT A REPORT:
+- Requirements met (list each with ✅ or ❌)
+- Code quality assessment (tests passing, lint clean, types clean)
+- Estimated completion percentage
+- Remaining work summary
+- Risks or blockers
+
+Do NOT modify any files. This is a read-only review."
+
+    kiro-cli chat --agent "$AGENT" --no-interactive --trust-all-tools "$review_prompt" 2>&1 || true
 }
 
 cmd_status() {
@@ -270,6 +395,35 @@ cmd_init() {
     # Use provided AWS profile or default
     local profile="${AWS_PROFILE:-default}"
 
+    # Auto-create feature branch unless --no-branch
+    local branch_name=""
+    if [[ "$NO_BRANCH" == "false" ]] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        branch_name="ralph/$(date +%Y%m%d-%H%M%S)"
+        git checkout -b "$branch_name" 2>/dev/null && \
+            echo -e "${GREEN}✓ Created branch: $branch_name${NC}" || \
+            echo -e "${YELLOW}⚠ Could not create branch, continuing on current branch${NC}"
+    fi
+
+    # Initialize AGENTS.md if it doesn't exist
+    if [[ ! -f "AGENTS.md" ]]; then
+        cat > "AGENTS.md" << 'AGENTSEOF'
+# AGENTS.md - Project Knowledge Base
+
+This file accumulates patterns, conventions, and learnings across Ralph iterations.
+The agent reads this at the start of each iteration to avoid repeating mistakes.
+
+## Patterns & Conventions
+<!-- Add project patterns here -->
+
+## Gotchas
+<!-- Add things that tripped up the agent -->
+
+## Recent Learnings
+<!-- Agent appends learnings here after each iteration -->
+AGENTSEOF
+        echo -e "${GREEN}✓ Created AGENTS.md knowledge base${NC}"
+    fi
+
     # Initialize state file
     cat > "$STATE_FILE" << EOF
 {
@@ -278,9 +432,16 @@ cmd_init() {
   "maxIterations": $MAX_ITERATIONS,
   "completionPromise": "$COMPLETION_PROMISE",
   "awsProfile": "$profile",
+  "branch": "$branch_name",
+  "maxCost": "${MAX_COST:-}",
   "prompt": $(echo "$PROMPT" | jq -Rs .),
   "startedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "agent": "$AGENT"
+  "agent": "$AGENT",
+  "metrics": {
+    "totalIterations": 0,
+    "estimatedCostUsd": 0,
+    "stalls": 0
+  }
 }
 EOF
 
@@ -291,6 +452,10 @@ EOF
     echo -e "  ${BLUE}Max Iter:${NC}    $MAX_ITERATIONS"
     echo ""
     echo -e "Run ${CYAN}ralph-kiro iterate${NC} to start working"
+    
+    # Send telemetry
+    local prompt_length=${#PROMPT}
+    send_metric "loop_init" "{\"max_iterations\":$MAX_ITERATIONS,\"aws_profile\":\"$profile\",\"prompt_length\":$prompt_length}"
 }
 
 run_iteration() {
@@ -303,11 +468,38 @@ run_iteration() {
     jq ".iteration = $iteration" "$STATE_FILE" > "${STATE_FILE}.tmp"
     mv "${STATE_FILE}.tmp" "$STATE_FILE"
     
+    # Capture git commit count before iteration (for stall detection)
+    local commits_before=0
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        commits_before=$(git rev-list --count HEAD 2>/dev/null || echo 0)
+    fi
+    
     local start_time=$(jq -r '.startedAt' "$STATE_FILE")
     
     echo -e "${CYAN}🔄 Ralph Iteration $iteration / $max_iterations${NC}"
     echo ""
     
+    # Build AGENTS.md context injection
+    local agents_context=""
+    if [[ -f "AGENTS.md" ]]; then
+        agents_context="
+
+PROJECT KNOWLEDGE BASE (AGENTS.md):
+$(cat AGENTS.md)
+"
+    fi
+
+    # Build recent git context for resume
+    local git_context=""
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        local recent_commits=$(git -P log --oneline -5 2>/dev/null || echo "No commits yet")
+        git_context="
+
+RECENT GIT HISTORY (last 5 commits):
+$recent_commits
+"
+    fi
+
     # Build iteration prompt with context
     local iter_prompt="[Ralph Loop - Iteration $iteration of $max_iterations]
 
@@ -316,12 +508,14 @@ $prompt
 ---
 RALPH METHODOLOGY:
 1. READ progress.txt (if exists) to see what's already done - don't re-explore
-2. CHOOSE the highest priority task (risky/architectural first, easy wins last)
-3. TAKE SMALL STEPS - one logical change per commit
-4. RUN FEEDBACK LOOPS before committing (tests, types, lint must pass)
-5. COMMIT after each completed task with clear message
-6. APPEND to progress.txt: task done, decisions made, files changed
-7. Output <promise>$COMPLETION_PROMISE</promise> ONLY when ALL tasks genuinely complete
+2. READ AGENTS.md (if exists) for project patterns, conventions, and gotchas
+3. CHOOSE the highest priority task (risky/architectural first, easy wins last)
+4. TAKE SMALL STEPS - one logical change per commit
+5. RUN FEEDBACK LOOPS before committing (tests, types, lint must pass)
+6. COMMIT after each completed task with clear message
+7. APPEND to progress.txt: task done, decisions made, files changed
+8. APPEND to AGENTS.md: any new patterns, gotchas, or learnings discovered
+9. Output <promise>$COMPLETION_PROMISE</promise> ONLY when ALL tasks genuinely complete
 
 PRIORITIZATION ORDER:
 - Architectural decisions and core abstractions (HIGH)
@@ -334,13 +528,15 @@ ITERATION CONTEXT:
 - This is iteration $iteration of $max_iterations
 - Previous work persists in files, git history, and progress.txt
 - Quality over speed - small steps compound into big progress
-- AWS_PROFILE is set to '$aws_profile' - use this for any AWS CLI/SDK operations"
+- AWS_PROFILE is set to '$aws_profile' - use this for any AWS CLI/SDK operations
+${agents_context}${git_context}"
 
     # Export AWS profile
     export AWS_PROFILE="$aws_profile"
 
     # Run kiro-cli and capture output
     local output_file=$(mktemp)
+    local iter_start=$(date +%s)
     
     if $VERBOSE; then
         kiro-cli chat --agent "$AGENT" --no-interactive --trust-all-tools "$iter_prompt" 2>&1 | tee "$output_file" || true
@@ -351,14 +547,68 @@ ITERATION CONTEXT:
     local output=$(cat "$output_file")
     rm -f "$output_file"
     
+    local iter_end=$(date +%s)
+    local iter_duration=$((iter_end - iter_start))
+    
+    # Estimate cost (~$0.05 per iteration as rough baseline)
+    local iter_cost="0.05"
+    local total_cost=$(jq -r '.metrics.estimatedCostUsd // 0' "$STATE_FILE")
+    total_cost=$(echo "$total_cost + $iter_cost" | bc 2>/dev/null || echo "$total_cost")
+    
+    # Update metrics in state
+    jq ".metrics.totalIterations = $iteration | .metrics.estimatedCostUsd = $total_cost" "$STATE_FILE" > "${STATE_FILE}.tmp"
+    mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    
+    # Check cost limit
+    if [[ -n "$MAX_COST" ]]; then
+        local over=$(echo "$total_cost >= $MAX_COST" | bc 2>/dev/null || echo "0")
+        if [[ "$over" == "1" ]]; then
+            echo ""
+            echo -e "${YELLOW}💰 Cost limit reached (\$$total_cost >= \$$MAX_COST). Stopping loop.${NC}"
+            return 2  # Special code for cost limit
+        fi
+    fi
+    
+    # Stall detection - check if any new commits were made
+    local commits_after=0
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        commits_after=$(git rev-list --count HEAD 2>/dev/null || echo 0)
+    fi
+    
+    if [[ "$commits_after" -le "$commits_before" ]]; then
+        local stalls=$(jq -r '.metrics.stalls // 0' "$STATE_FILE")
+        stalls=$((stalls + 1))
+        jq ".metrics.stalls = $stalls" "$STATE_FILE" > "${STATE_FILE}.tmp"
+        mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        
+        if [[ $stalls -ge $STALL_THRESHOLD ]]; then
+            echo ""
+            echo -e "${YELLOW}⚠️  Stall detected: No new commits for $stalls consecutive iterations. Stopping.${NC}"
+            echo "The agent may be stuck. Review progress.txt and AGENTS.md, then try:"
+            echo "  ralph-kiro review    # See what's blocking"
+            echo "  ralph-kiro iterate   # Try again"
+            return 2
+        else
+            echo -e "${YELLOW}⚠️  No new commits this iteration ($stalls/$STALL_THRESHOLD before auto-stop)${NC}"
+        fi
+    else
+        # Reset stall counter on successful commit
+        jq '.metrics.stalls = 0' "$STATE_FILE" > "${STATE_FILE}.tmp"
+        mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    fi
+    
     echo ""
     echo "─────────────────────────────────────────────────────────────────"
     
     # Check for completion promise
     if echo "$output" | grep -qE "<promise>$COMPLETION_PROMISE</promise>"; then
+        # Send telemetry - iteration completed with promise
+        send_metric "iteration" "{\"iteration\":$iteration,\"max_iterations\":$max_iterations,\"completed\":true,\"duration\":$iter_duration}"
         return 0  # Completed
     fi
     
+    # Send telemetry - iteration completed without promise
+    send_metric "iteration" "{\"iteration\":$iteration,\"max_iterations\":$max_iterations,\"completed\":false,\"duration\":$iter_duration}"
     return 1  # Not completed
 }
 
@@ -406,11 +656,15 @@ cmd_iterate() {
     while [[ $iteration -lt $max_iterations ]]; do
         iteration=$((iteration + 1))
         
-        if run_iteration "$iteration" "$max_iterations" "$prompt" "$aws_profile"; then
+        local result=0
+        run_iteration "$iteration" "$max_iterations" "$prompt" "$aws_profile" || result=$?
+        
+        if [[ $result -eq 0 ]]; then
             # Completed!
             local elapsed=$(($(date +%s) - start_time))
             local elapsed_min=$((elapsed / 60))
             local elapsed_sec=$((elapsed % 60))
+            local total_cost=$(jq -r '.metrics.estimatedCostUsd // 0' "$STATE_FILE")
             
             echo ""
             echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
@@ -419,12 +673,26 @@ cmd_iterate() {
             echo ""
             echo -e "  ${BLUE}Iterations:${NC}  $iteration"
             echo -e "  ${BLUE}Duration:${NC}    ${elapsed_min}m ${elapsed_sec}s"
+            echo -e "  ${BLUE}Est. Cost:${NC}   \$${total_cost}"
             echo ""
             
             jq '.active = false | .completedAt = "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'" | .success = true' "$STATE_FILE" > "${STATE_FILE}.tmp"
             mv "${STATE_FILE}.tmp" "$STATE_FILE"
             
+            # Send telemetry - loop completed successfully
+            send_metric "loop_complete" "{\"iterations\":$iteration,\"duration_seconds\":$elapsed,\"success\":true,\"reason\":\"completed\",\"cost\":$total_cost}"
+            
             exit 0
+        elif [[ $result -eq 2 ]]; then
+            # Stall or cost limit - stop gracefully
+            local elapsed=$(($(date +%s) - start_time))
+            local total_cost=$(jq -r '.metrics.estimatedCostUsd // 0' "$STATE_FILE")
+            
+            jq '.active = false | .iteration = '"$iteration"'' "$STATE_FILE" > "${STATE_FILE}.tmp"
+            mv "${STATE_FILE}.tmp" "$STATE_FILE"
+            
+            send_metric "loop_complete" "{\"iterations\":$iteration,\"duration_seconds\":$elapsed,\"success\":false,\"reason\":\"stall_or_cost\",\"cost\":$total_cost}"
+            exit 1
         fi
         
         if [[ $iteration -lt $max_iterations ]]; then
@@ -438,6 +706,7 @@ cmd_iterate() {
     local elapsed=$(($(date +%s) - start_time))
     local elapsed_min=$((elapsed / 60))
     local elapsed_sec=$((elapsed % 60))
+    local total_cost=$(jq -r '.metrics.estimatedCostUsd // 0' "$STATE_FILE")
     
     echo ""
     echo -e "${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
@@ -446,6 +715,7 @@ cmd_iterate() {
     echo ""
     echo -e "  ${BLUE}Iterations:${NC}  $iteration"
     echo -e "  ${BLUE}Duration:${NC}    ${elapsed_min}m ${elapsed_sec}s"
+    echo -e "  ${BLUE}Est. Cost:${NC}   \$${total_cost}"
     echo ""
     echo "Continue with: ralph-kiro iterate"
     echo "Or increase limit: ralph-kiro iterate --max 100"
@@ -453,6 +723,9 @@ cmd_iterate() {
     
     jq '.active = false | .iteration = '"$iteration"'' "$STATE_FILE" > "${STATE_FILE}.tmp"
     mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    
+    # Send telemetry - loop stopped at max iterations
+    send_metric "loop_complete" "{\"iterations\":$iteration,\"duration_seconds\":$elapsed,\"success\":false,\"reason\":\"max_iterations\"}"
 }
 
 # Run update check in background (non-blocking)
@@ -462,7 +735,7 @@ check_for_updates
 COMMAND=""
 if [[ $# -gt 0 ]]; then
     case $1 in
-        init|iterate|status|reset|setup|--help|-h|help)
+        init|iterate|status|reset|setup|plan|review|--help|-h|help)
             COMMAND="$1"
             shift
             ;;
@@ -514,6 +787,14 @@ while [[ $# -gt 0 ]]; do
             AWS_PROFILE="$2"
             shift 2
             ;;
+        --no-branch)
+            NO_BRANCH=true
+            shift
+            ;;
+        --max-cost)
+            MAX_COST="$2"
+            shift 2
+            ;;
         --verbose)
             VERBOSE=true
             shift
@@ -541,8 +822,14 @@ case $COMMAND in
     init)
         cmd_init
         ;;
+    plan)
+        cmd_plan
+        ;;
     iterate)
         cmd_iterate
+        ;;
+    review)
+        cmd_review
         ;;
     status)
         cmd_status
