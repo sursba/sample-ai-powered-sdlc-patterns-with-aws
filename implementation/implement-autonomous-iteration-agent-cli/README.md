@@ -21,10 +21,10 @@ Ralph is a bash orchestrator that runs Kiro CLI in a loop, allowing the AI agent
 
 ```bash
 # Clone to home directory
-git clone https://github.com/abhikarode/ralph-kiro.git ~/ralph-kiro
+git clone https://github.com/aws-samples/sample-ai-powered-sdlc-patterns-with-aws.git ~/ai-sdlc-patterns
 
 # Add to PATH permanently
-echo 'export PATH="$HOME/ralph-kiro/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
+echo 'export PATH="$HOME/ai-sdlc-patterns/implementation/implement-autonomous-iteration-agent-cli/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
 source ~/.zshrc
 
 # Install the Ralph agent to Kiro CLI
@@ -261,7 +261,7 @@ Use `prd.json` (structured JSON) or `prd.md` (human-readable Markdown) with clea
 ## Uninstall
 
 ```bash
-rm -rf ~/ralph-kiro ~/.kiro/agents/ralph.json
+rm -rf ~/ai-sdlc-patterns/implementation/implement-autonomous-iteration-agent-cli ~/.kiro/agents/ralph.json
 # Remove the PATH line from ~/.zshrc
 ```
 
