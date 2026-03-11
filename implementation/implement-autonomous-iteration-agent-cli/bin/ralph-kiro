@@ -87,36 +87,13 @@ show_update_notice() {
     fi
 }
 
-# Telemetry - send metrics to internal metrics server (non-blocking)
-TELEMETRY_ENDPOINT="https://metrics.aire.ags.aws.dev/metrics"
-TELEMETRY_ENABLED=true
+# Telemetry - disabled in public version
+TELEMETRY_ENDPOINT=""
+TELEMETRY_ENABLED=false
 
 send_metric() {
-    local event="$1"
-    local data="$2"
-    
-    if [[ "$TELEMETRY_ENABLED" != "true" ]]; then
-        return
-    fi
-    
-    local user=$(whoami)
-    local timestamp=$(date +%s)
-    local hostname=$(hostname -s 2>/dev/null || echo "unknown")
-    
-    (
-        curl -L -s -b ~/.midway/cookie -X POST \
-            -H "Content-Type: application/json" \
-            -d "{
-                \"server_name\": \"ralph-kiro\",
-                \"version\": \"${VERSION}\",
-                \"event\": \"${event}\",
-                \"user\": \"${user}\",
-                \"hostname\": \"${hostname}\",
-                \"timestamp\": \"${timestamp}\",
-                \"data\": ${data}
-            }" \
-            "$TELEMETRY_ENDPOINT" >/dev/null 2>&1
-    ) &
+    # Telemetry not available in public version
+    return
 }
 
 usage() {
@@ -133,7 +110,6 @@ ${YELLOW}Commands:${NC}
   plan \"DESCRIPTION\"      Generate a prd.json from a natural language description
   iterate                 Continue iterating on an existing loop
   review                  Run a judge pass - evaluate progress without making changes
-  studio                  Launch web UI dashboard (ACP-powered)
   status                  Show current loop status
   reset                   Clear state and start fresh
   setup                   Install ralph agent to ~/.kiro/agents/
@@ -277,52 +253,6 @@ Write the JSON to prd.json in the current directory."
     else
         echo -e "${YELLOW}PRD file was not created. Check the output above.${NC}"
     fi
-}
-
-cmd_studio() {
-    local lib_dir="$(get_package_lib_dir)"
-    local studio_dir="$(dirname "$lib_dir")/studio"
-    
-    # Check if studio exists
-    if [[ ! -d "$studio_dir" ]]; then
-        # Try alternate paths
-        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        studio_dir="$(dirname "$script_dir")/studio"
-    fi
-    
-    if [[ ! -f "$studio_dir/server.js" ]]; then
-        echo -e "${RED}Error: Studio not found at $studio_dir${NC}"
-        echo "Ensure the studio/ directory is present in the package."
-        exit 1
-    fi
-    
-    # Check for node
-    if ! command -v node &>/dev/null; then
-        echo -e "${RED}Error: Node.js is required for Studio${NC}"
-        echo "Install Node.js: https://nodejs.org/"
-        exit 1
-    fi
-    
-    # Install deps if needed
-    if [[ ! -d "$studio_dir/node_modules" ]]; then
-        echo -e "${YELLOW}Installing Studio dependencies...${NC}"
-        (cd "$studio_dir" && npm install --silent)
-    fi
-    
-    local port="${STUDIO_PORT:-3456}"
-    
-    echo -e "${CYAN}🎛️  ralph-kiro Studio${NC}"
-    echo "─────────────────────"
-    echo -e "  ${BLUE}URL:${NC}     http://localhost:${port}"
-    echo -e "  ${BLUE}Project:${NC} $(pwd)"
-    echo ""
-    echo -e "Press ${YELLOW}Ctrl+C${NC} to stop"
-    echo ""
-    
-    # Send telemetry
-    send_metric "studio_launch" "{\"port\":$port}"
-    
-    PORT="$port" node "$studio_dir/server.js"
 }
 
 cmd_review() {
@@ -782,7 +712,7 @@ check_for_updates
 COMMAND=""
 if [[ $# -gt 0 ]]; then
     case $1 in
-        init|iterate|status|reset|setup|plan|review|studio|--help|-h|help)
+        init|iterate|status|reset|setup|plan|review|--help|-h|help)
             COMMAND="$1"
             shift
             ;;
@@ -877,9 +807,6 @@ case $COMMAND in
         ;;
     review)
         cmd_review
-        ;;
-    studio)
-        cmd_studio
         ;;
     status)
         cmd_status
