@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ralph-kiro Studio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header id="header">
+      <div class="header-left">
+        <span class="logo">🔄 ralph-kiro</span>
+        <span class="version">studio v1.0</span>
+      </div>
+      <div class="header-center">
+        <div id="connection-status" class="status-badge disconnected">disconnected</div>
+      </div>
+      <div class="header-right">
+        <button id="btn-settings" class="icon-btn" title="Settings">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div id="main">
+      <!-- Sidebar -->
+      <nav id="sidebar">
+        <button class="nav-btn active" data-panel="dashboard">📊 Dashboard</button>
+        <button class="nav-btn" data-panel="feed">💬 Agent Feed</button>
+        <button class="nav-btn" data-panel="prd">📋 PRD</button>
+        <button class="nav-btn" data-panel="review">🔍 Review</button>
+        <button class="nav-btn" data-panel="history">📜 History</button>
+      </nav>
+
+      <!-- Content Area -->
+      <div id="content">
+
+        <!-- Dashboard Panel -->
+        <div id="panel-dashboard" class="panel active">
+          <!-- Project Selector -->
+          <div class="card" id="project-selector">
+            <div class="card-header">Project</div>
+            <div class="card-body">
+              <div class="input-row">
+                <input type="text" id="input-cwd" placeholder="/path/to/your/project" spellcheck="false">
+                <button id="btn-set-cwd" class="btn btn-sm">Set</button>
+                <button id="btn-connect-acp" class="btn btn-primary btn-sm">Connect ACP</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metrics Row -->
+          <div class="metrics-row">
+            <div class="metric-card">
+              <div class="metric-label">Iteration</div>
+              <div class="metric-value" id="metric-iteration">0 / 50</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Status</div>
+              <div class="metric-value" id="metric-status">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Est. Cost</div>
+              <div class="metric-value" id="metric-cost">$0.00</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Stalls</div>
+              <div class="metric-value" id="metric-stalls">0 / 3</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Branch</div>
+              <div class="metric-value" id="metric-branch">—</div>
+            </div>
+          </div>
+
+          <!-- Prompt Input -->
+          <div class="card">
+            <div class="card-header">Ralph Loop</div>
+            <div class="card-body">
+              <textarea id="input-prompt" rows="3" placeholder="Describe what you want to build..."></textarea>
+              <div class="btn-row">
+                <button id="btn-init" class="btn btn-primary">Init & Iterate</button>
+                <button id="btn-iterate" class="btn">Continue Iterate</button>
+                <button id="btn-review" class="btn">Judge Review</button>
+                <button id="btn-cancel" class="btn btn-danger" disabled>Cancel</button>
+                <button id="btn-reset" class="btn btn-sm">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Two Column: Progress + Git -->
+          <div class="two-col">
+            <div class="card flex-1">
+              <div class="card-header">progress.txt</div>
+              <div class="card-body">
+                <pre id="progress-content" class="file-content">No progress file yet</pre>
+              </div>
+            </div>
+            <div class="card flex-1">
+              <div class="card-header">Git Timeline</div>
+              <div class="card-body">
+                <div id="git-timeline" class="timeline">No commits yet</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AGENTS.md -->
+          <div class="card">
+            <div class="card-header">AGENTS.md — Knowledge Base</div>
+            <div class="card-body">
+              <pre id="agents-md-content" class="file-content">No AGENTS.md yet</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent Feed Panel -->
+        <div id="panel-feed" class="panel">
+          <div class="card full-height">
+            <div class="card-header">
+              Live Agent Feed
+              <span id="feed-status" class="feed-badge">idle</span>
+            </div>
+            <div class="card-body">
+              <div id="agent-feed" class="feed-container">
+                <div class="feed-empty">Connect to a project and start a loop to see agent output here.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRD Panel -->
+        <div id="panel-prd" class="panel">
+          <div class="card">
+            <div class="card-header">PRD Editor</div>
+            <div class="card-body">
+              <div class="input-row">
+                <input type="text" id="input-plan" placeholder="Describe your project in plain English..." style="flex:1">
+                <button id="btn-plan" class="btn btn-primary btn-sm">Generate PRD</button>
+              </div>
+              <textarea id="prd-editor" rows="20" placeholder="Your prd.json or prd.md content will appear here..." spellcheck="false" class="code-editor"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Panel -->
+        <div id="panel-review" class="panel">
+          <div class="card full-height">
+            <div class="card-header">
+              Judge Review
+              <button id="btn-run-review" class="btn btn-sm btn-primary">Run Review</button>
+            </div>
+            <div class="card-body">
+              <div id="review-output" class="feed-container">
+                <div class="feed-empty">Click "Run Review" to get a read-only assessment of progress.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Panel -->
+        <div id="panel-history" class="panel">
+          <div class="card full-height">
+            <div class="card-header">Session History</div>
+            <div class="card-body">
+              <div id="session-history" class="feed-container">
+                <div class="feed-empty">Past sessions will appear here.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

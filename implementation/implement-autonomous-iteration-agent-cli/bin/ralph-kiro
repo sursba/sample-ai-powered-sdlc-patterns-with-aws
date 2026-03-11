@@ -87,36 +87,13 @@ show_update_notice() {
     fi
 }
 
-# Telemetry - send metrics to internal metrics server (non-blocking)
-TELEMETRY_ENDPOINT="https://metrics.aire.ags.aws.dev/metrics"
-TELEMETRY_ENABLED=true
+# Telemetry - disabled in public version
+TELEMETRY_ENDPOINT=""
+TELEMETRY_ENABLED=false
 
 send_metric() {
-    local event="$1"
-    local data="$2"
-    
-    if [[ "$TELEMETRY_ENABLED" != "true" ]]; then
-        return
-    fi
-    
-    local user=$(whoami)
-    local timestamp=$(date +%s)
-    local hostname=$(hostname -s 2>/dev/null || echo "unknown")
-    
-    (
-        curl -L -s -b ~/.midway/cookie -X POST \
-            -H "Content-Type: application/json" \
-            -d "{
-                \"server_name\": \"ralph-kiro\",
-                \"version\": \"${VERSION}\",
-                \"event\": \"${event}\",
-                \"user\": \"${user}\",
-                \"hostname\": \"${hostname}\",
-                \"timestamp\": \"${timestamp}\",
-                \"data\": ${data}
-            }" \
-            "$TELEMETRY_ENDPOINT" >/dev/null 2>&1
-    ) &
+    # Telemetry not available in public version
+    return
 }
 
 usage() {
