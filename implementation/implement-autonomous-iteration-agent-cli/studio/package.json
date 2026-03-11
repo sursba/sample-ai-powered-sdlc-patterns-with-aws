@@ -1,0 +1,14 @@
+{
+  "name": "ralph-kiro-studio",
+  "version": "1.0.0",
+  "description": "Web UI for ralph-kiro - ACP-powered autonomous iteration dashboard",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}
