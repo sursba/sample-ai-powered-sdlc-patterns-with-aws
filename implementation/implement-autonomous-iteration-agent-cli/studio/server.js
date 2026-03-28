@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import express from 'express';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync, watchFile } from 'fs';
 import { createServer } from 'http';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -25,6 +25,15 @@ let pendingRequests = new Map();
 let requestId = 0;
 let clients = new Set();
 let projectCwd = null;
+
+// Persist cwd to disk so it survives server restarts
+const cwdFile = join(__dirname, '.last-cwd');
+try { if (existsSync(cwdFile)) projectCwd = readFileSync(cwdFile, 'utf-8').trim(); } catch {}
+
+function saveCwd(cwd) {
+  projectCwd = cwd;
+  try { writeFileSync(cwdFile, cwd); } catch {}
+}
 
 // ── REST API for project state ──
 
@@ -63,6 +72,63 @@ app.get('/api/prd', (req, res) => {
   res.json({ filename: null, content: null });
 });
 
+app.get('/api/tasks', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const f = join(cwd, '.kiro', 'tasks.json');
+  if (existsSync(f)) {
+    try { res.json(JSON.parse(readFileSync(f, 'utf-8'))); }
+    catch { res.json(null); }
+  } else {
+    res.json(null);
+  }
+});
+
+app.get('/api/logs', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const logDir = join(cwd, '.kiro', 'ralph-logs');
+  if (!existsSync(logDir)) return res.json([]);
+  try {
+    const files = readdirSync(logDir)
+      .filter(f => f.startsWith('iteration-') && f.endsWith('.log'))
+      .map(f => {
+        const st = statSync(join(logDir, f));
+        return { name: f, size: st.size, modified: st.mtime };
+      })
+      .sort((a, b) => b.name.localeCompare(a.name));
+    res.json(files);
+  } catch { res.json([]); }
+});
+
+app.get('/api/logs/:name', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const f = join(cwd, '.kiro', 'ralph-logs', req.params.name);
+  if (existsSync(f) && req.params.name.startsWith('iteration-')) {
+    res.json({ content: readFileSync(f, 'utf-8') });
+  } else {
+    res.status(404).json({ error: 'Log not found' });
+  }
+});
+
+app.get('/api/skills', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const skills = [];
+  for (const dir of ['skills', '.kiro/skills']) {
+    const skillsPath = join(cwd, dir);
+    if (!existsSync(skillsPath)) continue;
+    try {
+      for (const entry of readdirSync(skillsPath, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          const skillMd = join(skillsPath, entry.name, 'SKILL.md');
+          if (existsSync(skillMd)) {
+            skills.push({ name: entry.name, content: readFileSync(skillMd, 'utf-8') });
+          }
+        }
+      }
+    } catch {}
+  }
+  res.json(skills);
+});
+
 app.get('/api/git-log', (req, res) => {
   const cwd = projectCwd || process.cwd();
   const git = spawn('git', ['-P', 'log', '--oneline', '--format=%H|%s|%ai', '-20'], { cwd });
@@ -78,10 +144,24 @@ app.get('/api/git-log', (req, res) => {
   git.on('error', () => res.json([]));
 });
 
+app.get('/api/aws-profiles', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const awsConfig = join(process.env.HOME || '', '.aws', 'config');
+  const profiles = ['default'];
+  if (existsSync(awsConfig)) {
+    try {
+      const content = readFileSync(awsConfig, 'utf-8');
+      const matches = content.matchAll(/\[profile\s+(.+?)\]/g);
+      for (const m of matches) profiles.push(m[1]);
+    } catch {}
+  }
+  res.json([...new Set(profiles)]);
+});
+
 app.post('/api/set-cwd', (req, res) => {
   const { cwd } = req.body;
   if (cwd && existsSync(cwd)) {
-    projectCwd = resolve(cwd);
+    saveCwd(resolve(cwd));
     broadcast({ type: 'cwd_changed', cwd: projectCwd });
     res.json({ ok: true, cwd: projectCwd });
   } else {
@@ -244,6 +324,43 @@ function cancelSession() {
   broadcast({ type: 'session_cancelled' });
 }
 
+// ── Task Graph Generation ──
+
+function generateTasksFromPrd(cwd) {
+  const tasksFile = join(cwd, '.kiro', 'tasks.json');
+  if (existsSync(tasksFile)) return;
+
+  const prdJson = join(cwd, 'prd.json');
+  if (!existsSync(prdJson)) return;
+
+  try {
+    const prd = JSON.parse(readFileSync(prdJson, 'utf-8'));
+    const tasks = [];
+    let taskId = 0;
+    const reqs = prd.requirements || [];
+    for (const req of reqs) {
+      if (typeof req === 'object' && req.tasks) {
+        const cat = req.category || 'General';
+        const priority = req.priority || 'medium';
+        for (const t of req.tasks) {
+          taskId++;
+          tasks.push({ id: taskId, description: typeof t === 'string' ? t : String(t), category: cat, priority, status: 'pending', depends_on: [], iteration: null, notes: '' });
+        }
+      } else if (typeof req === 'string') {
+        taskId++;
+        tasks.push({ id: taskId, description: req, category: 'General', priority: 'medium', status: 'pending', depends_on: [], iteration: null, notes: '' });
+      }
+    }
+    if (tasks.length > 0) {
+      const dir = join(cwd, '.kiro');
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      const graph = { version: 1, source: 'prd.json', tasks, success_criteria: prd.success_criteria || [] };
+      writeFileSync(tasksFile, JSON.stringify(graph, null, 2));
+      broadcast({ type: 'file_changed', file: 'tasks.json', content: JSON.stringify(graph, null, 2) });
+    }
+  } catch (e) { console.error('Failed to generate tasks:', e.message); }
+}
+
 // ── WebSocket handling ──
 
 function broadcast(data) {
@@ -268,13 +385,17 @@ wss.on('connection', (ws) => {
       switch (msg.action) {
         case 'init_acp': {
           const cwd = msg.cwd || projectCwd;
-          if (cwd) projectCwd = resolve(cwd);
+          if (cwd) saveCwd(resolve(cwd));
           await initializeAcp(projectCwd);
           await createSession(projectCwd);
           ws.send(JSON.stringify({ type: 'ready', sessionId: acpSessionId }));
           break;
         }
         case 'prompt': {
+          // Before first prompt, generate tasks.json from PRD if requested
+          if (msg.initTasks && projectCwd) {
+            generateTasksFromPrd(projectCwd);
+          }
           await sendPrompt(msg.text);
           break;
         }
@@ -303,6 +424,7 @@ function watchProjectFiles() {
   if (!projectCwd) return;
   const files = [
     join(projectCwd, '.kiro', 'ralph-state.json'),
+    join(projectCwd, '.kiro', 'tasks.json'),
     join(projectCwd, 'progress.txt'),
     join(projectCwd, 'AGENTS.md')
   ];

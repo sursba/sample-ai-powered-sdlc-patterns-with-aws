@@ -4,57 +4,73 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ralph-kiro Studio</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app">
-    <!-- Header -->
     <header id="header">
       <div class="header-left">
-        <span class="logo">🔄 ralph-kiro</span>
-        <span class="version">studio v1.0</span>
+        <img src="favicon.png" alt="" width="24" height="24" style="border-radius:4px">
+        <span class="logo">ralph-kiro</span>
+        <span class="version">studio v3.0</span>
       </div>
       <div class="header-center">
         <div id="connection-status" class="status-badge disconnected">disconnected</div>
       </div>
       <div class="header-right">
-        <button id="btn-settings" class="icon-btn" title="Settings">⚙️</button>
+        <button id="btn-theme" class="icon-btn" title="Toggle theme">🌙</button>
       </div>
     </header>
 
-    <!-- Main Layout -->
     <div id="main">
-      <!-- Sidebar -->
       <nav id="sidebar">
+        <div class="nav-section">CONTROL</div>
         <button class="nav-btn active" data-panel="dashboard">📊 Dashboard</button>
         <button class="nav-btn" data-panel="feed">💬 Agent Feed</button>
-        <button class="nav-btn" data-panel="prd">📋 PRD</button>
-        <button class="nav-btn" data-panel="review">🔍 Review</button>
-        <button class="nav-btn" data-panel="history">📜 History</button>
+        <div class="nav-section">BUILD</div>
+        <button class="nav-btn" data-panel="prd">📋 PRD Editor</button>
+        <button class="nav-btn" data-panel="tasks">📌 Task Graph</button>
+        <div class="nav-section">REVIEW</div>
+        <button class="nav-btn" data-panel="review">🔍 Judge Review</button>
+        <button class="nav-btn" data-panel="logs">📜 Iteration Logs</button>
       </nav>
 
-      <!-- Content Area -->
       <div id="content">
-
-        <!-- Dashboard Panel -->
+        <!-- ═══ DASHBOARD ═══ -->
         <div id="panel-dashboard" class="panel active">
-          <!-- Project Selector -->
-          <div class="card" id="project-selector">
-            <div class="card-header">Project</div>
+          <!-- Project + ACP Connection -->
+          <div class="card">
+            <div class="card-header">🔌 Project & Connection</div>
             <div class="card-body">
-              <div class="input-row">
-                <input type="text" id="input-cwd" placeholder="/path/to/your/project" spellcheck="false">
-                <button id="btn-set-cwd" class="btn btn-sm">Set</button>
-                <button id="btn-connect-acp" class="btn btn-primary btn-sm">Connect ACP</button>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Project Directory</label>
+                  <div class="input-row">
+                    <input type="text" id="input-cwd" placeholder="/path/to/your/project" spellcheck="false">
+                    <button id="btn-set-cwd" class="btn btn-sm">Set</button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>AWS Profile</label>
+                  <select id="select-aws-profile" class="select">
+                    <option value="default">default</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Connection</label>
+                  <button id="btn-connect-acp" class="btn btn-primary" style="width:100%">Connect ACP</button>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Metrics Row -->
+          <!-- Metrics -->
           <div class="metrics-row">
             <div class="metric-card">
               <div class="metric-label">Iteration</div>
               <div class="metric-value" id="metric-iteration">0 / 50</div>
+              <div class="metric-bar"><div class="metric-bar-fill" id="metric-iteration-bar" style="width:0%"></div></div>
             </div>
             <div class="metric-card">
               <div class="metric-label">Status</div>
@@ -70,55 +86,93 @@
             </div>
             <div class="metric-card">
               <div class="metric-label">Branch</div>
-              <div class="metric-value" id="metric-branch">—</div>
+              <div class="metric-value mono-sm" id="metric-branch">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Tasks</div>
+              <div class="metric-value" id="metric-tasks">—</div>
             </div>
           </div>
 
-          <!-- Prompt Input -->
+          <!-- Command Center -->
           <div class="card">
-            <div class="card-header">Ralph Loop</div>
+            <div class="card-header">🎮 Command Center</div>
             <div class="card-body">
-              <textarea id="input-prompt" rows="3" placeholder="Describe what you want to build..."></textarea>
+              <textarea id="input-prompt" rows="3" placeholder="Describe what you want to build... (Cmd+Enter to start)"></textarea>
+              <div class="cmd-options">
+                <div class="form-group compact">
+                  <label>Max Iterations</label>
+                  <input type="number" id="input-max-iter" value="50" min="1" max="500" class="input-sm">
+                </div>
+                <div class="form-group compact">
+                  <label>Max Cost ($)</label>
+                  <input type="number" id="input-max-cost" value="" placeholder="∞" min="0" step="0.5" class="input-sm">
+                </div>
+                <div class="form-group compact">
+                  <label>Delay (s)</label>
+                  <input type="number" id="input-delay" value="2" min="0" max="30" class="input-sm">
+                </div>
+                <div class="form-group compact">
+                  <label>Branch</label>
+                  <select id="select-branch" class="select-sm">
+                    <option value="auto">Auto-create</option>
+                    <option value="none">No branch</option>
+                  </select>
+                </div>
+                <div class="form-group compact">
+                  <label>Agent</label>
+                  <input type="text" id="input-agent" value="ralph" class="input-sm" spellcheck="false">
+                </div>
+              </div>
               <div class="btn-row">
-                <button id="btn-init" class="btn btn-primary">Init & Iterate</button>
-                <button id="btn-iterate" class="btn">Continue Iterate</button>
-                <button id="btn-review" class="btn">Judge Review</button>
-                <button id="btn-cancel" class="btn btn-danger" disabled>Cancel</button>
-                <button id="btn-reset" class="btn btn-sm">Reset</button>
+                <button id="btn-init" class="btn btn-primary">▶ Init & Iterate</button>
+                <button id="btn-iterate" class="btn">⏭ Continue</button>
+                <button id="btn-plan" class="btn">📋 Plan PRD</button>
+                <button id="btn-review" class="btn">🔍 Review</button>
+                <button id="btn-cancel" class="btn btn-danger" disabled>⏹ Cancel</button>
+                <button id="btn-reset" class="btn btn-sm">🗑 Reset</button>
               </div>
             </div>
           </div>
 
-          <!-- Two Column: Progress + Git -->
+          <!-- Two Column: Task Graph + Git -->
           <div class="two-col">
             <div class="card flex-1">
-              <div class="card-header">progress.txt</div>
-              <div class="card-body">
-                <pre id="progress-content" class="file-content">No progress file yet</pre>
+              <div class="card-header">📌 Task Graph</div>
+              <div class="card-body scroll-sm">
+                <div id="tasks-graph" class="task-list">No task graph yet</div>
               </div>
             </div>
             <div class="card flex-1">
-              <div class="card-header">Git Timeline</div>
-              <div class="card-body">
+              <div class="card-header">🔀 Git Timeline</div>
+              <div class="card-body scroll-sm">
                 <div id="git-timeline" class="timeline">No commits yet</div>
               </div>
             </div>
           </div>
 
-          <!-- AGENTS.md -->
-          <div class="card">
-            <div class="card-header">AGENTS.md — Knowledge Base</div>
-            <div class="card-body">
-              <pre id="agents-md-content" class="file-content">No AGENTS.md yet</pre>
+          <!-- Two Column: Progress + Knowledge -->
+          <div class="two-col">
+            <div class="card flex-1">
+              <div class="card-header">📝 progress.txt</div>
+              <div class="card-body scroll-sm">
+                <pre id="progress-content" class="file-content">No progress file yet</pre>
+              </div>
+            </div>
+            <div class="card flex-1">
+              <div class="card-header">🧠 AGENTS.md</div>
+              <div class="card-body scroll-sm">
+                <pre id="agents-md-content" class="file-content">No AGENTS.md yet</pre>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Agent Feed Panel -->
+        <!-- ═══ AGENT FEED ═══ -->
         <div id="panel-feed" class="panel">
           <div class="card full-height">
             <div class="card-header">
-              Live Agent Feed
+              💬 Live Agent Feed
               <span id="feed-status" class="feed-badge">idle</span>
             </div>
             <div class="card-body">
@@ -129,43 +183,55 @@
           </div>
         </div>
 
-        <!-- PRD Panel -->
+        <!-- ═══ PRD EDITOR ═══ -->
         <div id="panel-prd" class="panel">
           <div class="card">
-            <div class="card-header">PRD Editor</div>
+            <div class="card-header">📋 PRD Editor</div>
             <div class="card-body">
-              <div class="input-row">
-                <input type="text" id="input-plan" placeholder="Describe your project in plain English..." style="flex:1">
-                <button id="btn-plan" class="btn btn-primary btn-sm">Generate PRD</button>
+              <div class="input-row" style="margin-bottom:12px">
+                <input type="text" id="input-plan-desc" placeholder="Describe your project in plain English..." style="flex:1">
+                <button id="btn-generate-prd" class="btn btn-primary btn-sm">Generate PRD</button>
               </div>
-              <textarea id="prd-editor" rows="20" placeholder="Your prd.json or prd.md content will appear here..." spellcheck="false" class="code-editor"></textarea>
+              <div class="prd-tabs">
+                <button class="prd-tab active" data-format="json">prd.json</button>
+                <button class="prd-tab" data-format="md">prd.md</button>
+              </div>
+              <textarea id="prd-editor" rows="24" placeholder="Your PRD content..." spellcheck="false" class="code-editor"></textarea>
             </div>
           </div>
         </div>
 
-        <!-- Review Panel -->
+        <!-- ═══ TASK GRAPH ═══ -->
+        <div id="panel-tasks" class="panel">
+          <div class="card full-height">
+            <div class="card-header">📌 Structured Task Graph (.kiro/tasks.json)</div>
+            <div class="card-body">
+              <div id="tasks-graph-full" class="task-list">No task graph yet</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ JUDGE REVIEW ═══ -->
         <div id="panel-review" class="panel">
           <div class="card full-height">
             <div class="card-header">
-              Judge Review
+              🔍 Judge Review
               <button id="btn-run-review" class="btn btn-sm btn-primary">Run Review</button>
             </div>
             <div class="card-body">
               <div id="review-output" class="feed-container">
-                <div class="feed-empty">Click "Run Review" to get a read-only assessment of progress.</div>
+                <div class="feed-empty">Click "Run Review" for a read-only assessment of progress against requirements.</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- History Panel -->
-        <div id="panel-history" class="panel">
+        <!-- ═══ ITERATION LOGS ═══ -->
+        <div id="panel-logs" class="panel">
           <div class="card full-height">
-            <div class="card-header">Session History</div>
+            <div class="card-header">📜 Iteration Logs (.kiro/ralph-logs/)</div>
             <div class="card-body">
-              <div id="session-history" class="feed-container">
-                <div class="feed-empty">Past sessions will appear here.</div>
-              </div>
+              <div id="iteration-logs" class="log-list">No logs yet</div>
             </div>
           </div>
         </div>
@@ -173,7 +239,6 @@
       </div>
     </div>
   </div>
-
   <script src="app.js"></script>
 </body>
 </html>
