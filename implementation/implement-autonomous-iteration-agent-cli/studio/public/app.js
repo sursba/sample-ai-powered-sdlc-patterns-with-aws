@@ -75,6 +75,7 @@ function handleMessage(msg) {
       break;
     case 'ready':
       acpReady = true; elStatus.textContent = 'acp ready'; elStatus.className = 'status-badge connected';
+      elMetricStatus.textContent = '⏸️ Ready'; elMetricStatus.style.color = 'var(--accent-green)';
       unlockUI(); loadProjectData();
       break;
     case 'acp_initialized': appendFeed('system', 'ACP initialized'); break;
