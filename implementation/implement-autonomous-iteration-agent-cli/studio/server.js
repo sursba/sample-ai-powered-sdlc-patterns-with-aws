@@ -102,7 +102,11 @@ app.get('/api/logs', (req, res) => {
 app.get('/api/logs/:name', (req, res) => {
   const cwd = projectCwd || process.cwd();
   const logDir = join(cwd, '.kiro', 'ralph-logs');
-  const f = resolve(logDir, req.params.name);
+  const name = req.params.name;
+  if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid log name' });
+  }
+  const f = resolve(logDir, name);
   if (!f.startsWith(logDir + '/') || !existsSync(f)) {
     return res.status(404).json({ error: 'Log not found' });
   }
@@ -162,6 +166,7 @@ app.post('/api/set-cwd', (req, res) => {
   const { cwd } = req.body;
   if (cwd && existsSync(cwd)) {
     saveCwd(resolve(cwd));
+    watchProjectFiles();
     broadcast({ type: 'cwd_changed', cwd: projectCwd });
     res.json({ ok: true, cwd: projectCwd });
   } else {
@@ -205,7 +210,7 @@ function handleAcpMessage(msg) {
     if (msg.method.startsWith('fs/') || msg.method.startsWith('terminal/')) {
       const response = JSON.stringify({
         jsonrpc: '2.0', id: msg.id,
-        result: {}
+        error: { code: -32601, message: `Method not implemented: ${msg.method}` }
       });
       acpProcess.stdin.write(response + '\n');
     }
@@ -243,6 +248,7 @@ function startAcpProcess(cwd) {
     env: { ...process.env },
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  const thisProcess = acpProcess;
 
   let buffer = '';
   acpProcess.stdout.on('data', (data) => {
@@ -265,6 +271,7 @@ function startAcpProcess(cwd) {
   });
 
   acpProcess.on('close', (code) => {
+    if (acpProcess !== thisProcess) return;
     for (const [id, pending] of pendingRequests) {
       pending.reject(new Error(`ACP process exited with code ${code}`));
     }
@@ -426,7 +433,17 @@ wss.on('connection', (ws) => {
 
 // ── File watchers for live updates ──
 
+let watchedFiles = [];
+
+function unwatchProjectFiles() {
+  for (const f of watchedFiles) {
+    unwatchFile(f);
+  }
+  watchedFiles = [];
+}
+
 function watchProjectFiles() {
+  unwatchProjectFiles();
   if (!projectCwd) return;
   const files = [
     join(projectCwd, '.kiro', 'ralph-state.json'),
@@ -435,6 +452,7 @@ function watchProjectFiles() {
     join(projectCwd, 'AGENTS.md')
   ];
   for (const f of files) {
+    watchedFiles.push(f);
     watchFile(f, { interval: 2000 }, () => {
       try {
         const content = readFileSync(f, 'utf-8');
@@ -447,7 +465,7 @@ function watchProjectFiles() {
 
 // ── Start server ──
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n  🎛️  ralph-kiro Studio`);
   console.log(`  ─────────────────────`);
   console.log(`  http://localhost:${PORT}\n`);

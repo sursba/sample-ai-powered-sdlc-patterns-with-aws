@@ -165,7 +165,7 @@ function appendFeed(type, text) {
   elFeed.appendChild(entry);
   elFeed.scrollTop = elFeed.scrollHeight;
 }
-function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function handleFileChange(msg) {
   switch (msg.file) {
@@ -280,10 +280,14 @@ function renderTaskGraphFull(data) { $('#tasks-graph-full').innerHTML = renderTa
 function renderIterationLogs(logs) {
   const el = $('#iteration-logs');
   if (!logs?.length) { el.innerHTML = '<div class="feed-empty">No iteration logs yet. Logs are created when using ralph-kiro CLI (not Studio ACP mode). Use the Agent Feed tab for live output.</div>'; return; }
-  el.innerHTML = logs.map(l => `<div class="log-entry" onclick="viewLog('${esc(l.name)}')">
-    <span class="log-name">📄 ${esc(l.name)}</span>
-    <span class="log-size">${(l.size/1024).toFixed(1)} KB</span>
-  </div>`).join('');
+  el.innerHTML = '';
+  logs.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML = `<span class="log-name">📄 ${esc(l.name)}</span><span class="log-size">${(l.size/1024).toFixed(1)} KB</span>`;
+    div.addEventListener('click', () => viewLog(l.name));
+    el.appendChild(div);
+  });
 }
 
 async function viewLog(name) {
@@ -449,8 +453,12 @@ $('#btn-generate-prd')?.addEventListener('click', () => {
 
 $('#input-prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && e.metaKey) $('#btn-init').click(); });
 
-// Live update iteration metric when max-iterations changes
-$('#input-max-iter').addEventListener('input', () => { loadProjectData(); });
+// Live update iteration metric when max-iterations changes (debounced)
+let maxIterDebounce;
+$('#input-max-iter').addEventListener('input', () => {
+  clearTimeout(maxIterDebounce);
+  maxIterDebounce = setTimeout(loadProjectData, 300);
+});
 
 // PRD tab switching
 $$('.prd-tab').forEach(tab => {
