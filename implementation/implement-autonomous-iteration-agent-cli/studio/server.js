@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import express from 'express';
-import { existsSync, readFileSync, readdirSync, statSync, watchFile } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, watchFile, writeFileSync } from 'fs';
 import { createServer } from 'http';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -101,12 +101,12 @@ app.get('/api/logs', (req, res) => {
 
 app.get('/api/logs/:name', (req, res) => {
   const cwd = projectCwd || process.cwd();
-  const f = join(cwd, '.kiro', 'ralph-logs', req.params.name);
-  if (existsSync(f) && req.params.name.startsWith('iteration-')) {
-    res.json({ content: readFileSync(f, 'utf-8') });
-  } else {
-    res.status(404).json({ error: 'Log not found' });
+  const logDir = join(cwd, '.kiro', 'ralph-logs');
+  const f = resolve(logDir, req.params.name);
+  if (!f.startsWith(logDir + '/') || !existsSync(f)) {
+    return res.status(404).json({ error: 'Log not found' });
   }
+  res.json({ content: readFileSync(f, 'utf-8') });
 });
 
 app.get('/api/skills', (req, res) => {
@@ -265,6 +265,10 @@ function startAcpProcess(cwd) {
   });
 
   acpProcess.on('close', (code) => {
+    for (const [id, pending] of pendingRequests) {
+      pending.reject(new Error(`ACP process exited with code ${code}`));
+    }
+    pendingRequests.clear();
     broadcast({ type: 'acp_closed', code });
     acpProcess = null;
     acpSessionId = null;
@@ -278,9 +282,11 @@ function startAcpProcess(cwd) {
 }
 
 async function initializeAcp(cwd) {
-  startAcpProcess(cwd);
-  // Wait a moment for process to start
-  await new Promise(r => setTimeout(r, 500));
+  const proc = startAcpProcess(cwd);
+  await new Promise((resolve, reject) => {
+    proc.on('spawn', resolve);
+    proc.on('error', reject);
+  });
 
   const initResult = await sendToAcp('initialize', {
     protocolVersion: 1,
@@ -429,15 +435,13 @@ function watchProjectFiles() {
     join(projectCwd, 'AGENTS.md')
   ];
   for (const f of files) {
-    if (existsSync(f)) {
-      watchFile(f, { interval: 2000 }, () => {
-        try {
-          const content = readFileSync(f, 'utf-8');
-          const name = f.split('/').pop();
-          broadcast({ type: 'file_changed', file: name, content });
-        } catch {}
-      });
-    }
+    watchFile(f, { interval: 2000 }, () => {
+      try {
+        const content = readFileSync(f, 'utf-8');
+        const name = f.split('/').pop();
+        broadcast({ type: 'file_changed', file: name, content });
+      } catch {}
+    });
   }
 }
 

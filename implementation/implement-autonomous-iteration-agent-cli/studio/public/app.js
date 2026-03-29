@@ -202,7 +202,8 @@ async function loadProjectData() {
 function updateMetrics(s) {
   // Always respect activeOp first — even if state file is null
   if (activeOp) {
-    elMetricStatus.textContent = '🟢 Running';
+    const opLabels = { init: '🔄 Building...', iterate: '🔄 Iterating...', plan: '📋 Creating PRD...', review: '🔍 Reviewing...', reset: '🗑 Resetting...' };
+    elMetricStatus.textContent = opLabels[activeOp] || '🟢 Running';
     elMetricStatus.style.color = 'var(--accent-green)';
   }
   if (!s) return;
@@ -347,9 +348,10 @@ $('#btn-connect-acp').addEventListener('click', () => {
   const cwd = $('#input-cwd').value.trim();
   if (!cwd) { appendFeed('error', 'Set a project directory first'); return; }
   lockUI();
-  appendFeed('system', 'Starting ACP...');
+  elMetricStatus.textContent = '🔌 Connecting...'; elMetricStatus.style.color = 'var(--accent)';
+  elStatus.textContent = 'connecting'; elStatus.className = 'status-badge running';
+  appendFeed('system', 'Starting ACP session...');
   send({ action: 'init_acp', cwd });
-  // unlockUI happens when 'ready' message arrives
 });
 
 $('#btn-init').addEventListener('click', () => {
@@ -371,9 +373,10 @@ Follow the Ralph methodology: read progress.txt, AGENTS.md, .kiro/tasks.json. Ch
 Output <promise>DONE</promise> ONLY when ALL tasks are genuinely complete.`;
   elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
   $('#btn-cancel').disabled = false;
-  elMetricStatus.textContent = '🟢 Running'; elMetricStatus.style.color = 'var(--accent-green)';
+  
   appendFeed('system', `▶ Init: ${prompt.slice(0, 80)}...`);
   activeOp = 'init';
+  elMetricStatus.textContent = '🔄 Building...'; elMetricStatus.style.color = 'var(--accent-green)';
   send({ action: 'prompt', text: initPrompt, initTasks: true });
   // unlockUI happens on prompt_complete
 });
@@ -383,9 +386,10 @@ $('#btn-iterate').addEventListener('click', () => {
   lockUI();
   elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
   $('#btn-cancel').disabled = false;
-  elMetricStatus.textContent = '🟢 Running'; elMetricStatus.style.color = 'var(--accent-green)';
+  
   appendFeed('system', '⏭ Continuing iteration...');
   activeOp = 'iterate';
+  elMetricStatus.textContent = '🔄 Iterating...'; elMetricStatus.style.color = 'var(--accent-green)';
   send({ action: 'prompt', text: `[Ralph Loop - Continue]\nContinue the Ralph loop. Read progress.txt, AGENTS.md, .kiro/tasks.json. Pick next pending task. Implement, test, commit, update progress.\nOutput <promise>DONE</promise> ONLY when ALL tasks are genuinely complete.` });
 });
 
@@ -396,9 +400,10 @@ $('#btn-plan').addEventListener('click', () => {
   lockUI();
   elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
   $('#btn-cancel').disabled = false;
-  elMetricStatus.textContent = '🟢 Running'; elMetricStatus.style.color = 'var(--accent-green)';
+  
   appendFeed('system', `📋 Generating PRD: ${desc.slice(0, 60)}...`);
   activeOp = 'plan';
+  elMetricStatus.textContent = '📋 Creating PRD...'; elMetricStatus.style.color = 'var(--accent)';
   send({ action: 'prompt', text: `Generate a structured prd.json from this description. Output ONLY the JSON. Write it to prd.json.\n\nDescription: ${desc}\n\nFormat: {"name":"...","description":"...","requirements":[{"id":"1","category":"Setup","tasks":["..."],"priority":"high"}],"success_criteria":["..."],"tech_stack":["..."]}` });
 });
 
@@ -411,9 +416,10 @@ $('#btn-review').addEventListener('click', () => {
   $('#panel-review').classList.add('active');
   elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
   $('#btn-cancel').disabled = false;
-  elMetricStatus.textContent = '🟢 Running'; elMetricStatus.style.color = 'var(--accent-green)';
+  
   elReviewOutput.innerHTML = '<div class="feed-entry system">Running judge review...</div>';
   activeOp = 'review';
+  elMetricStatus.textContent = '🔍 Reviewing...'; elMetricStatus.style.color = 'var(--accent-purple)';
   send({ action: 'prompt', text: `You are a JUDGE. Do NOT make changes. Read progress.txt, prd.json/prd.md, .kiro/tasks.json, and the codebase. Output: requirements met (✅/❌), code quality, completion %, remaining work, risks.` });
 });
 
