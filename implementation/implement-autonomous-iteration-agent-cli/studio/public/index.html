@@ -39,6 +39,34 @@
       <div id="content">
         <!-- ═══ DASHBOARD ═══ -->
         <div id="panel-dashboard" class="panel active">
+
+          <!-- Guided Workflow Steps -->
+          <div class="workflow-steps">
+            <div class="step active" id="step-1">
+              <span class="step-num">1</span>
+              <span class="step-label">Set Project</span>
+            </div>
+            <div class="step-arrow">›</div>
+            <div class="step" id="step-2">
+              <span class="step-num">2</span>
+              <span class="step-label">Connect ACP</span>
+            </div>
+            <div class="step-arrow">›</div>
+            <div class="step" id="step-3">
+              <span class="step-num">3</span>
+              <span class="step-label">Plan PRD</span>
+            </div>
+            <div class="step-arrow">›</div>
+            <div class="step" id="step-4">
+              <span class="step-num">4</span>
+              <span class="step-label">Review PRD</span>
+            </div>
+            <div class="step-arrow">›</div>
+            <div class="step" id="step-5">
+              <span class="step-num">5</span>
+              <span class="step-label">Build</span>
+            </div>
+          </div>
           <!-- Project + ACP Connection -->
           <div class="card">
             <div class="card-header">🔌 Project & Connection</div>
@@ -186,7 +214,10 @@
         <!-- ═══ PRD EDITOR ═══ -->
         <div id="panel-prd" class="panel">
           <div class="card">
-            <div class="card-header">📋 PRD Editor</div>
+            <div class="card-header">
+              📋 PRD Editor
+              <button id="btn-back-to-dashboard" class="btn btn-primary btn-sm">→ Back to Dashboard to Build</button>
+            </div>
             <div class="card-body">
               <div class="input-row" style="margin-bottom:12px">
                 <input type="text" id="input-plan-desc" placeholder="Describe your project in plain English..." style="flex:1">

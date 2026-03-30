@@ -25,6 +25,17 @@ const elStalls = $('#metric-stalls');
 const elBranch = $('#metric-branch');
 const elMetricTasks = $('#metric-tasks');
 
+// ── Guided Workflow Steps ──
+function setStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById(`step-${i}`);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  }
+}
+
 // ── Navigation ──
 $$('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -76,6 +87,7 @@ function handleMessage(msg) {
     case 'ready':
       acpReady = true; elStatus.textContent = 'acp ready'; elStatus.className = 'status-badge connected';
       elMetricStatus.textContent = '⏸️ Ready'; elMetricStatus.style.color = 'var(--accent-green)';
+      setStep(3);
       unlockUI(); loadProjectData();
       break;
     case 'acp_initialized': appendFeed('system', 'ACP initialized'); break;
@@ -89,6 +101,7 @@ function handleMessage(msg) {
       loadProjectData().then(() => {
         // After Plan PRD completes, switch to PRD Editor panel
         if (finishedOp === 'plan') {
+          setStep(4);
           $$('.nav-btn').forEach(b => b.classList.remove('active'));
           $('[data-panel="prd"]').classList.add('active');
           $$('.panel').forEach(p => p.classList.remove('active'));
@@ -343,7 +356,7 @@ $('#btn-set-cwd').addEventListener('click', async () => {
   try {
     const res = await fetch('/api/set-cwd', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cwd}) });
     const data = await res.json();
-    if (data.ok) { appendFeed('system', `Project: ${data.cwd}`); await loadProjectData(); }
+    if (data.ok) { appendFeed('system', `Project: ${data.cwd}`); await loadProjectData(); setStep(2); }
     else appendFeed('error', data.error || 'Failed');
   } catch (e) { appendFeed('error', e.message); }
   unlockUI();
@@ -381,8 +394,9 @@ Output <promise>DONE</promise> ONLY when ALL tasks are genuinely complete.`;
   
   appendFeed('system', `▶ Init: ${prompt.slice(0, 80)}...`);
   activeOp = 'init';
+  setStep(5);
   elMetricStatus.textContent = '🔄 Building...'; elMetricStatus.style.color = 'var(--accent-green)';
-  send({ action: 'prompt', text: initPrompt, initTasks: true });
+  send({ action: 'prompt', text: initPrompt, initTasks: true, maxIterations: parseInt(maxIter), prompt: prompt });
   // unlockUI happens on prompt_complete
 });
 
@@ -445,6 +459,13 @@ $('#btn-reset').addEventListener('click', () => {
 });
 
 $('#btn-run-review')?.addEventListener('click', () => $('#btn-review').click());
+$('#btn-back-to-dashboard')?.addEventListener('click', () => {
+  setStep(5);
+  $$('.nav-btn').forEach(b => b.classList.remove('active'));
+  $('[data-panel="dashboard"]').classList.add('active');
+  $$('.panel').forEach(p => p.classList.remove('active'));
+  $('#panel-dashboard').classList.add('active');
+});
 $('#btn-generate-prd')?.addEventListener('click', () => {
   const desc = $('#input-plan-desc').value.trim();
   if (!desc) return;
@@ -473,5 +494,16 @@ $$('.prd-tab').forEach(tab => {
 connectWs();
 loadAwsProfiles();
 initTheme();
+setStep(1);
 setTimeout(loadProjectData, 500);
 setInterval(() => { if (connected) loadProjectData(); }, 10000);
+
+// Fast poll during active iteration — refresh task graph every 3s
+setInterval(async () => {
+  if (!connected || !activeOp) return;
+  try {
+    const tasks = await fetch('/api/tasks').then(r => r.json());
+    renderTaskGraph(tasks);
+    renderTaskGraphFull(tasks);
+  } catch {}
+}, 3000);

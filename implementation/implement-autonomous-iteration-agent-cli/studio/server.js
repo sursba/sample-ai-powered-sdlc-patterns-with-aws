@@ -24,11 +24,13 @@ let acpSessionId = null;
 let pendingRequests = new Map();
 let requestId = 0;
 let clients = new Set();
-let projectCwd = null;
 
-// Persist cwd to disk so it survives server restarts
+// Default project directory to where studio was launched
+let projectCwd = process.cwd();
+let currentIteration = 0; // track iterations in-memory
+
+// Save cwd to disk for persistence within a session (not auto-loaded on restart)
 const cwdFile = join(__dirname, '.last-cwd');
-try { if (existsSync(cwdFile)) projectCwd = readFileSync(cwdFile, 'utf-8').trim(); } catch {}
 
 function saveCwd(cwd) {
   projectCwd = cwd;
@@ -339,6 +341,55 @@ function cancelSession() {
 
 // ── Task Graph Generation ──
 
+function initStateFile(cwd, prompt, maxIterations) {
+  const dir = join(cwd, '.kiro');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const stateFile = join(dir, 'ralph-state.json');
+  const state = {
+    active: true,
+    iteration: 0,
+    maxIterations: maxIterations || 50,
+    completionPromise: 'DONE',
+    awsProfile: 'default',
+    branch: '',
+    maxCost: '',
+    prompt: prompt || '',
+    startedAt: new Date().toISOString(),
+    agent: 'ralph',
+    metrics: { totalIterations: 0, estimatedCostUsd: 0, stalls: 0 }
+  };
+  writeFileSync(stateFile, JSON.stringify(state, null, 2));
+  broadcast({ type: 'file_changed', file: 'ralph-state.json', content: JSON.stringify(state, null, 2) });
+}
+
+function markStateComplete(cwd) {
+  const stateFile = join(cwd, '.kiro', 'ralph-state.json');
+  if (!existsSync(stateFile)) return;
+  try {
+    const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
+    state.active = false;
+    state.success = true;
+    state.iteration = Math.max(state.iteration, 1);
+    state.metrics.totalIterations = state.iteration;
+    state.completedAt = new Date().toISOString();
+    writeFileSync(stateFile, JSON.stringify(state, null, 2));
+    broadcast({ type: 'file_changed', file: 'ralph-state.json', content: JSON.stringify(state, null, 2) });
+  } catch {}
+}
+
+function updateStateIteration(cwd, iteration) {
+  if (!cwd) return;
+  const stateFile = join(cwd, '.kiro', 'ralph-state.json');
+  if (!existsSync(stateFile)) return;
+  try {
+    const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
+    state.iteration = iteration;
+    state.metrics.totalIterations = iteration;
+    writeFileSync(stateFile, JSON.stringify(state, null, 2));
+    broadcast({ type: 'file_changed', file: 'ralph-state.json', content: JSON.stringify(state, null, 2) });
+  } catch {}
+}
+
 function generateTasksFromPrd(cwd) {
   const tasksFile = join(cwd, '.kiro', 'tasks.json');
   if (existsSync(tasksFile)) return;
@@ -405,11 +456,20 @@ wss.on('connection', (ws) => {
           break;
         }
         case 'prompt': {
-          // Before first prompt, generate tasks.json from PRD if requested
+          // Before first prompt, generate tasks.json and init state file
           if (msg.initTasks && projectCwd) {
             generateTasksFromPrd(projectCwd);
+            currentIteration = 0;
+            initStateFile(projectCwd, msg.prompt || '', msg.maxIterations || 50);
           }
-          await sendPrompt(msg.text);
+          currentIteration++;
+          // Update iteration in state file
+          updateStateIteration(projectCwd, currentIteration);
+          const result = await sendPrompt(msg.text);
+          // Mark state complete after prompt finishes
+          if (msg.initTasks && projectCwd) {
+            markStateComplete(projectCwd);
+          }
           break;
         }
         case 'cancel': {
