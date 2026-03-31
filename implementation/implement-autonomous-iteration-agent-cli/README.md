@@ -111,8 +111,26 @@ The Studio is a local web UI powered by the [Agent Client Protocol (ACP)](https:
 - **Judge Review** — read-only progress assessment
 - **Git Timeline** — commit history
 - **Dark/Light Theme** — toggle with persistence
+- **Guided workflow** — numbered step bar (Set Project → Connect ACP → Plan PRD → Review PRD → Build) highlights current step
+- **Browser auto-open** — `ralph-kiro studio` automatically opens your default browser
+- **Live task graph** — polls every 3 seconds during active iteration for real-time progress
 
 Launch: `ralph-kiro studio` (default port 3456, set `STUDIO_PORT` to customize)
+
+### Studio on Remote Machines
+
+If running on a remote server or cloud dev environment:
+```bash
+# On the remote machine
+ralph-kiro studio
+```
+
+Then from your local machine, port forward via SSH:
+```bash
+ssh -N -L 3456:localhost:3456 your-remote-host
+```
+
+Open `http://localhost:3456` in your local browser.
 
 ## Key Concepts
 
