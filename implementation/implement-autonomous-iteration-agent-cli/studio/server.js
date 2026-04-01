@@ -105,11 +105,12 @@ app.get('/api/logs/:name', (req, res) => {
   const cwd = projectCwd || process.cwd();
   const logDir = join(cwd, '.kiro', 'ralph-logs');
   const name = req.params.name;
-  if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+  // Sanitize: only allow alphanumeric, dash, dot, underscore
+  if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
     return res.status(400).json({ error: 'Invalid log name' });
   }
   const f = resolve(logDir, name);
-  if (!f.startsWith(logDir + '/') || !existsSync(f)) {
+  if (!f.startsWith(resolve(logDir) + '/') || !existsSync(f)) {
     return res.status(404).json({ error: 'Log not found' });
   }
   res.json({ content: readFileSync(f, 'utf-8') });
@@ -151,23 +152,38 @@ app.get('/api/git-log', (req, res) => {
 });
 
 app.get('/api/aws-profiles', (req, res) => {
-  const cwd = projectCwd || process.cwd();
-  const awsConfig = join(process.env.HOME || '', '.aws', 'config');
-  const profiles = ['default'];
+  const home = process.env.HOME || '';
+  const profiles = new Set(['default']);
+
+  // Read ~/.aws/config — profiles use [profile name] or [default]
+  const awsConfig = join(home, '.aws', 'config');
   if (existsSync(awsConfig)) {
     try {
       const content = readFileSync(awsConfig, 'utf-8');
-      const matches = content.matchAll(/\[profile\s+(.+?)\]/g);
-      for (const m of matches) profiles.push(m[1]);
+      for (const m of content.matchAll(/\[profile\s+(.+?)\]/g)) profiles.add(m[1]);
     } catch {}
   }
-  res.json([...new Set(profiles)]);
+
+  // Read ~/.aws/credentials — profiles use [name] directly
+  const awsCreds = join(home, '.aws', 'credentials');
+  if (existsSync(awsCreds)) {
+    try {
+      const content = readFileSync(awsCreds, 'utf-8');
+      for (const m of content.matchAll(/^\[(.+?)\]/gm)) profiles.add(m[1]);
+    } catch {}
+  }
+
+  res.json([...profiles]);
 });
 
 app.post('/api/set-cwd', (req, res) => {
   const { cwd } = req.body;
-  if (cwd && existsSync(cwd)) {
-    saveCwd(resolve(cwd));
+  if (!cwd || typeof cwd !== 'string') {
+    return res.status(400).json({ error: 'Invalid directory' });
+  }
+  const resolved = resolve(cwd);
+  if (existsSync(resolved)) {
+    saveCwd(resolved);
     watchProjectFiles();
     broadcast({ type: 'cwd_changed', cwd: projectCwd });
     res.json({ ok: true, cwd: projectCwd });

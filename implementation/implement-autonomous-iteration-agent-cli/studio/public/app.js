@@ -1,5 +1,5 @@
 // ralph-kiro Studio v3.0 — Frontend
-const WS_URL = `ws://${location.host}`;
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
 let ws = null;
 let connected = false;
 let acpReady = false;
@@ -69,7 +69,14 @@ async function loadAwsProfiles() {
   try {
     const profiles = await fetch('/api/aws-profiles').then(r => r.json());
     const sel = $('#select-aws-profile');
-    sel.innerHTML = profiles.map(p => `<option value="${p}" ${p === 'default' ? 'selected' : ''}>${p}</option>`).join('');
+    sel.textContent = '';
+    profiles.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      if (p === 'default') opt.selected = true;
+      sel.appendChild(opt);
+    });
   } catch {}
 }
 
@@ -175,7 +182,16 @@ function appendFeed(type, text) {
   entry.className = `feed-entry ${type}`;
   const time = new Date().toLocaleTimeString('en-US', { hour12: false });
   const icons = { text:'💬', 'tool-call':'🔧', 'tool-result':'✅', error:'❌', system:'ℹ️' };
-  entry.innerHTML = `<span class="timestamp">${time}</span><span class="label">${icons[type]||''}</span>${esc(text)}`;
+  const ts = document.createElement('span');
+  ts.className = 'timestamp';
+  ts.textContent = time;
+  const lbl = document.createElement('span');
+  lbl.className = 'label';
+  lbl.textContent = icons[type] || '';
+  const txt = document.createTextNode(text);
+  entry.appendChild(ts);
+  entry.appendChild(lbl);
+  entry.appendChild(txt);
   elFeed.appendChild(entry);
   elFeed.scrollTop = elFeed.scrollHeight;
 }
@@ -254,17 +270,35 @@ function updateMetrics(s) {
 }
 
 function renderGitTimeline(commits) {
-  if (!commits?.length) { elGitTimeline.innerHTML = '<div class="feed-empty">No commits yet</div>'; return; }
-  elGitTimeline.innerHTML = commits.map(c => `
-    <div class="commit-entry"><div class="commit-dot"></div><div>
-      <span class="commit-hash">${(c.hash||'').slice(0,7)}</span>
-      <span class="commit-msg">${esc(c.message||'')}</span>
-      <div class="commit-date">${c.date||''}</div>
-    </div></div>`).join('');
+  if (!commits?.length) { elGitTimeline.textContent = ''; const e = document.createElement('div'); e.className = 'feed-empty'; e.textContent = 'No commits yet'; elGitTimeline.appendChild(e); return; }
+  elGitTimeline.textContent = '';
+  commits.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'commit-entry';
+    const dot = document.createElement('div');
+    dot.className = 'commit-dot';
+    const info = document.createElement('div');
+    const hash = document.createElement('span');
+    hash.className = 'commit-hash';
+    hash.textContent = (c.hash || '').slice(0, 7);
+    const msg = document.createElement('span');
+    msg.className = 'commit-msg';
+    msg.textContent = c.message || '';
+    const date = document.createElement('div');
+    date.className = 'commit-date';
+    date.textContent = c.date || '';
+    info.appendChild(hash);
+    info.appendChild(msg);
+    info.appendChild(date);
+    row.appendChild(dot);
+    row.appendChild(info);
+    elGitTimeline.appendChild(row);
+  });
 }
 
-function renderTaskItems(data) {
-  if (!data?.tasks?.length) return '<div class="feed-empty">No task graph yet</div>';
+function renderTaskItems(container, data) {
+  container.textContent = '';
+  if (!data?.tasks?.length) { const e = document.createElement('div'); e.className = 'feed-empty'; e.textContent = 'No task graph yet'; container.appendChild(e); return; }
   const tasks = data.tasks;
   const done = tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
   const pending = tasks.filter(t => t.status === 'pending' || t.status === 'todo' || !t.status).length;
@@ -272,33 +306,69 @@ function renderTaskItems(data) {
   const total = tasks.length;
   const pct = Math.round((done / total) * 100);
   elMetricTasks.textContent = `${done}/${total} (${pct}%)`;
-  let html = `<div class="task-summary"><span>${done}/${tasks.length}</span> done (${pct}%) | <span style="color:var(--accent-yellow)">${pending}</span> pending | <span style="color:var(--accent-red)">${blocked}</span> blocked</div>`;
-  html += tasks.map(t => {
+
+  const summary = document.createElement('div');
+  summary.className = 'task-summary';
+  summary.textContent = `${done}/${tasks.length} done (${pct}%) | `;
+  const pendSpan = document.createElement('span');
+  pendSpan.style.color = 'var(--accent-yellow)';
+  pendSpan.textContent = pending;
+  summary.appendChild(pendSpan);
+  summary.appendChild(document.createTextNode(' pending | '));
+  const blockSpan = document.createElement('span');
+  blockSpan.style.color = 'var(--accent-red)';
+  blockSpan.textContent = blocked;
+  summary.appendChild(blockSpan);
+  summary.appendChild(document.createTextNode(' blocked'));
+  container.appendChild(summary);
+
+  tasks.forEach(t => {
     const icon = t.status === 'done' ? '✅' : t.status === 'blocked' ? '🚫' : '⬜';
-    // Normalize priority — agent may use numbers (1-2=high, 3-4=medium, 5+=low) or strings
     let pri = t.priority || 'medium';
     if (typeof pri === 'number') pri = pri <= 2 ? 'high' : pri <= 4 ? 'medium' : 'low';
-    return `<div class="task-item ${t.status}">
-      <span class="task-status">${icon}</span>
-      <span class="task-priority ${pri}">${pri.slice(0,3)}</span>
-      <span class="task-desc">${esc(t.description||t.title||'')}</span>
-      <span class="task-cat">${esc(t.category||'')}</span>
-      <span class="task-iter">${t.iteration ? 'iter '+t.iteration : ''}</span>
-    </div>`;
-  }).join('');
-  return html;
+    const row = document.createElement('div');
+    row.className = `task-item ${t.status}`;
+    const elIcon = document.createElement('span');
+    elIcon.className = 'task-status';
+    elIcon.textContent = icon;
+    const elPri = document.createElement('span');
+    elPri.className = `task-priority ${pri}`;
+    elPri.textContent = pri.slice(0, 3);
+    const elDesc = document.createElement('span');
+    elDesc.className = 'task-desc';
+    elDesc.textContent = t.description || t.title || '';
+    const elCat = document.createElement('span');
+    elCat.className = 'task-cat';
+    elCat.textContent = t.category || '';
+    const elIter = document.createElement('span');
+    elIter.className = 'task-iter';
+    elIter.textContent = t.iteration ? 'iter ' + t.iteration : '';
+    row.appendChild(elIcon);
+    row.appendChild(elPri);
+    row.appendChild(elDesc);
+    row.appendChild(elCat);
+    row.appendChild(elIter);
+    container.appendChild(row);
+  });
 }
-function renderTaskGraph(data) { $('#tasks-graph').innerHTML = renderTaskItems(data); }
-function renderTaskGraphFull(data) { $('#tasks-graph-full').innerHTML = renderTaskItems(data); }
+function renderTaskGraph(data) { renderTaskItems($('#tasks-graph'), data); }
+function renderTaskGraphFull(data) { renderTaskItems($('#tasks-graph-full'), data); }
 
 function renderIterationLogs(logs) {
   const el = $('#iteration-logs');
-  if (!logs?.length) { el.innerHTML = '<div class="feed-empty">No iteration logs yet. Logs are created when using ralph-kiro CLI (not Studio ACP mode). Use the Agent Feed tab for live output.</div>'; return; }
-  el.innerHTML = '';
+  if (!logs?.length) { el.textContent = ''; const e = document.createElement('div'); e.className = 'feed-empty'; e.textContent = 'No iteration logs yet. Logs are created when using ralph-kiro CLI (not Studio ACP mode). Use the Agent Feed tab for live output.'; el.appendChild(e); return; }
+  el.textContent = '';
   logs.forEach(l => {
     const div = document.createElement('div');
     div.className = 'log-entry';
-    div.innerHTML = `<span class="log-name">📄 ${esc(l.name)}</span><span class="log-size">${(l.size/1024).toFixed(1)} KB</span>`;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'log-name';
+    nameSpan.textContent = '📄 ' + l.name;
+    const sizeSpan = document.createElement('span');
+    sizeSpan.className = 'log-size';
+    sizeSpan.textContent = (l.size / 1024).toFixed(1) + ' KB';
+    div.appendChild(nameSpan);
+    div.appendChild(sizeSpan);
     div.addEventListener('click', () => viewLog(l.name));
     el.appendChild(div);
   });
@@ -306,11 +376,28 @@ function renderIterationLogs(logs) {
 
 async function viewLog(name) {
   try {
-    const data = await fetch(`/api/logs/${name}`).then(r => r.json());
+    const data = await fetch(`/api/logs/${encodeURIComponent(name)}`).then(r => r.json());
     if (!data.content) return;
     const modal = document.createElement('div');
     modal.className = 'log-modal';
-    modal.innerHTML = `<div class="log-modal-content"><div class="log-modal-header"><span>${esc(name)}</span><button class="log-modal-close" onclick="this.closest('.log-modal').remove()">✕</button></div><div class="log-modal-body">${esc(data.content)}</div></div>`;
+    const content = document.createElement('div');
+    content.className = 'log-modal-content';
+    const header = document.createElement('div');
+    header.className = 'log-modal-header';
+    const title = document.createElement('span');
+    title.textContent = name;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'log-modal-close';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => modal.remove());
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    const body = document.createElement('div');
+    body.className = 'log-modal-body';
+    body.textContent = data.content;
+    content.appendChild(header);
+    content.appendChild(body);
+    modal.appendChild(content);
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
   } catch {}
@@ -436,7 +523,11 @@ $('#btn-review').addEventListener('click', () => {
   elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
   $('#btn-cancel').disabled = false;
   
-  elReviewOutput.innerHTML = '<div class="feed-entry system">Running judge review...</div>';
+  elReviewOutput.textContent = '';
+  const reviewMsg = document.createElement('div');
+  reviewMsg.className = 'feed-entry system';
+  reviewMsg.textContent = 'Running judge review...';
+  elReviewOutput.appendChild(reviewMsg);
   activeOp = 'review';
   elMetricStatus.textContent = '🔍 Reviewing...'; elMetricStatus.style.color = 'var(--accent-purple)';
   send({ action: 'prompt', text: `You are a JUDGE. Do NOT make changes. Read progress.txt, prd.json/prd.md, .kiro/tasks.json, and the codebase. Output: requirements met (✅/❌), code quality, completion %, remaining work, risks.` });
