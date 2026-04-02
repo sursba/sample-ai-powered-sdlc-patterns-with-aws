@@ -1,13 +1,14 @@
-// ralph-kiro Studio — Frontend
-const WS_URL = `ws://${location.host}`;
+// ralph-kiro Studio v3.0 — Frontend
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
 let ws = null;
 let connected = false;
 let acpReady = false;
+let activeOp = null; // tracks current operation: 'init', 'iterate', 'plan', 'review', 'reset'
 
-// ── DOM refs ──
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
+// DOM refs
 const elStatus = $('#connection-status');
 const elFeed = $('#agent-feed');
 const elFeedStatus = $('#feed-status');
@@ -16,13 +17,24 @@ const elAgentsMd = $('#agents-md-content');
 const elPrdEditor = $('#prd-editor');
 const elReviewOutput = $('#review-output');
 const elGitTimeline = $('#git-timeline');
-
-// Metrics
 const elIteration = $('#metric-iteration');
+const elIterBar = $('#metric-iteration-bar');
 const elMetricStatus = $('#metric-status');
 const elCost = $('#metric-cost');
 const elStalls = $('#metric-stalls');
 const elBranch = $('#metric-branch');
+const elMetricTasks = $('#metric-tasks');
+
+// ── Guided Workflow Steps ──
+function setStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById(`step-${i}`);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  }
+}
 
 // ── Navigation ──
 $$('.nav-btn').forEach(btn => {
@@ -37,154 +49,126 @@ $$('.nav-btn').forEach(btn => {
 // ── WebSocket ──
 function connectWs() {
   ws = new WebSocket(WS_URL);
-
   ws.onopen = () => {
     connected = true;
     elStatus.textContent = 'connected';
     elStatus.className = 'status-badge connected';
   };
-
   ws.onclose = () => {
-    connected = false;
-    acpReady = false;
+    connected = false; acpReady = false;
     elStatus.textContent = 'disconnected';
     elStatus.className = 'status-badge disconnected';
     setTimeout(connectWs, 3000);
   };
-
-  ws.onmessage = (evt) => {
-    const msg = JSON.parse(evt.data);
-    handleMessage(msg);
-  };
+  ws.onmessage = (evt) => handleMessage(JSON.parse(evt.data));
 }
+function send(data) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(data)); }
 
-function send(data) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
+// ── Load AWS Profiles ──
+async function loadAwsProfiles() {
+  try {
+    const profiles = await fetch('/api/aws-profiles').then(r => r.json());
+    const sel = $('#select-aws-profile');
+    sel.textContent = '';
+    profiles.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      if (p === 'default') opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch {}
 }
 
 // ── Message Handler ──
 function handleMessage(msg) {
   switch (msg.type) {
     case 'connected':
-      if (msg.cwd) $('#input-cwd').value = msg.cwd;
-      if (msg.acpRunning) {
-        acpReady = true;
-        elStatus.textContent = 'acp ready';
-        elStatus.className = 'status-badge connected';
-      }
-      break;
-
-    case 'ready':
-      acpReady = true;
-      elStatus.textContent = 'acp ready';
-      elStatus.className = 'status-badge connected';
-      loadProjectData();
-      break;
-
-    case 'acp_initialized':
-      appendFeed('system', 'ACP initialized');
-      break;
-
-    case 'session_created':
-      appendFeed('system', `Session created: ${msg.sessionId}`);
-      break;
-
-    case 'acp_notification':
-      handleAcpNotification(msg);
-      break;
-
-    case 'acp_response':
-      if (msg.method === 'session/prompt') {
-        elFeedStatus.textContent = 'idle';
-        elFeedStatus.className = 'feed-badge';
-        $('#btn-cancel').disabled = true;
+      if (msg.cwd) {
+        $('#input-cwd').value = msg.cwd;
+        // Auto-load project data if server already has a cwd
         loadProjectData();
       }
+      if (msg.acpRunning) { acpReady = true; elStatus.textContent = 'acp ready'; elStatus.className = 'status-badge connected'; }
       break;
-
-    case 'prompt_complete':
-      elFeedStatus.textContent = 'idle';
-      elFeedStatus.className = 'feed-badge';
-      $('#btn-cancel').disabled = true;
-      loadProjectData();
+    case 'ready':
+      acpReady = true; elStatus.textContent = 'acp ready'; elStatus.className = 'status-badge connected';
+      elMetricStatus.textContent = '⏸️ Ready'; elMetricStatus.style.color = 'var(--accent-green)';
+      setStep(3);
+      unlockUI(); loadProjectData();
       break;
-
-    case 'acp_stderr':
-      appendFeed('error', msg.data);
+    case 'acp_initialized': appendFeed('system', 'ACP initialized'); break;
+    case 'session_created': appendFeed('system', `Session: ${msg.sessionId}`); break;
+    case 'acp_notification': handleAcpNotification(msg); break;
+    case 'prompt_complete': {
+      elFeedStatus.textContent = 'idle'; elFeedStatus.className = 'feed-badge';
+      const finishedOp = activeOp;
+      activeOp = null;
+      elMetricStatus.textContent = '✅ Done'; elMetricStatus.style.color = 'var(--accent-green)';
+      loadProjectData().then(() => {
+        // After Plan PRD completes, switch to PRD Editor panel
+        if (finishedOp === 'plan') {
+          setStep(4);
+          $$('.nav-btn').forEach(b => b.classList.remove('active'));
+          $('[data-panel="prd"]').classList.add('active');
+          $$('.panel').forEach(p => p.classList.remove('active'));
+          $('#panel-prd').classList.add('active');
+        }
+      });
+      unlockUI();
       break;
-
-    case 'acp_raw':
-      appendFeed('text', msg.data);
-      break;
-
+    }
+    case 'acp_stderr': appendFeed('error', msg.data); break;
+    case 'acp_raw': appendFeed('text', msg.data); break;
     case 'acp_closed':
-      acpReady = false;
-      elStatus.textContent = 'acp stopped';
-      elStatus.className = 'status-badge disconnected';
-      appendFeed('system', `ACP process exited (code: ${msg.code})`);
+      acpReady = false; elStatus.textContent = 'acp stopped'; elStatus.className = 'status-badge disconnected';
+      appendFeed('system', `ACP exited (code: ${msg.code})`); unlockUI();
       break;
-
-    case 'acp_error':
-      appendFeed('error', msg.error);
-      break;
-
-    case 'permission_auto_approved':
-      appendFeed('system', `Auto-approved: ${JSON.stringify(msg.params).slice(0, 100)}`);
-      break;
-
-    case 'file_changed':
-      handleFileChange(msg);
-      break;
-
-    case 'error':
-      appendFeed('error', msg.error);
-      break;
+    case 'acp_error': appendFeed('error', msg.error); unlockUI(); break;
+    case 'permission_auto_approved': appendFeed('system', `✓ Auto-approved tool call`); break;
+    case 'file_changed': handleFileChange(msg); break;
+    case 'error': appendFeed('error', msg.error); break;
   }
 }
 
-// ── ACP Notification Handler ──
 function handleAcpNotification(msg) {
-  const { method, params } = msg;
-  if (!params) return;
-
-  const update = params.update;
+  const update = msg.params?.update;
   if (!update) return;
-
   switch (update.sessionUpdate) {
     case 'agent_message_chunk':
-      if (update.content && update.content.text) {
-        appendFeed('text', update.content.text);
+      if (update.content?.text) {
+        const text = update.content.text;
+        // Detect completion promise
+        if (text.includes('<promise>') || text.includes('DONE</promise>') || text.includes('</promise>')) {
+          appendFeed('system', '🎉 Completion promise detected — task is DONE');
+          elMetricStatus.textContent = '✅ Done';
+          elMetricStatus.style.color = 'var(--accent-green)';
+        } else {
+          appendFeed('text', text);
+        }
+        // Also append to review panel if review is active
+        if (activeOp === 'review') {
+          const entry = document.createElement('div');
+          entry.className = 'feed-entry text';
+          entry.textContent = text;
+          elReviewOutput.appendChild(entry);
+          elReviewOutput.scrollTop = elReviewOutput.scrollHeight;
+        }
       }
       break;
-
     case 'tool_call':
-      appendFeed('tool-call', `🔧 ${update.title || 'Tool call'} [${update.kind || ''}] — ${update.status}`);
+      appendFeed('tool-call', `🔧 ${update.title || 'Tool'} [${update.kind || ''}] — ${update.status}`);
       break;
-
     case 'tool_call_update':
       if (update.status === 'completed' && update.content) {
-        for (const c of update.content) {
-          if (c.content && c.content.text) {
-            appendFeed('tool-result', c.content.text.slice(0, 500));
-          }
-        }
+        for (const c of update.content) { if (c.content?.text) appendFeed('tool-result', c.content.text.slice(0, 500)); }
       } else {
-        appendFeed('tool-call', `🔧 Tool ${update.toolCallId} — ${update.status}`);
+        appendFeed('tool-call', `🔧 ${update.toolCallId} — ${update.status}`);
       }
       break;
-
     case 'plan':
       if (update.entries) {
-        const planText = update.entries.map(e =>
-          `${e.status === 'completed' ? '✅' : '⬜'} [${e.priority || ''}] ${e.content}`
-        ).join('\n');
-        appendFeed('system', `📋 Plan:\n${planText}`);
-      }
-      break;
-
-    case 'user_message_chunk':
-      if (update.content && update.content.text) {
-        appendFeed('system', `👤 ${update.content.text}`);
+        appendFeed('system', '📋 Plan:\n' + update.entries.map(e => `  ${e.status === 'completed' ? '✅' : '⬜'} ${e.content}`).join('\n'));
       }
       break;
   }
@@ -192,289 +176,425 @@ function handleAcpNotification(msg) {
 
 // ── Feed ──
 function appendFeed(type, text) {
-  // Remove empty placeholder
   const empty = elFeed.querySelector('.feed-empty');
   if (empty) empty.remove();
-
   const entry = document.createElement('div');
   entry.className = `feed-entry ${type}`;
-
   const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-  const label = { text: '💬', 'tool-call': '🔧', 'tool-result': '✅', error: '❌', system: 'ℹ️' }[type] || '';
-
-  entry.innerHTML = `<span class="timestamp">${time}</span><span class="label">${label}</span>${escapeHtml(text)}`;
+  const icons = { text:'💬', 'tool-call':'🔧', 'tool-result':'✅', error:'❌', system:'ℹ️' };
+  const ts = document.createElement('span');
+  ts.className = 'timestamp';
+  ts.textContent = time;
+  const lbl = document.createElement('span');
+  lbl.className = 'label';
+  lbl.textContent = icons[type] || '';
+  const txt = document.createTextNode(text);
+  entry.appendChild(ts);
+  entry.appendChild(lbl);
+  entry.appendChild(txt);
   elFeed.appendChild(entry);
   elFeed.scrollTop = elFeed.scrollHeight;
 }
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-function escapeHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-// ── File Change Handler ──
 function handleFileChange(msg) {
   switch (msg.file) {
-    case 'ralph-state.json':
-      try { updateMetrics(JSON.parse(msg.content)); } catch {}
-      break;
-    case 'progress.txt':
-      elProgress.textContent = msg.content || 'No progress file yet';
-      break;
-    case 'AGENTS.md':
-      elAgentsMd.textContent = msg.content || 'No AGENTS.md yet';
-      break;
+    case 'ralph-state.json': try { updateMetrics(JSON.parse(msg.content)); } catch {} break;
+    case 'tasks.json': try { const d = JSON.parse(msg.content); renderTaskGraph(d); renderTaskGraphFull(d); } catch {} break;
+    case 'progress.txt': elProgress.textContent = msg.content || 'No progress file yet'; break;
+    case 'AGENTS.md': elAgentsMd.textContent = msg.content || 'No AGENTS.md yet'; break;
   }
 }
 
-// ── Load Project Data ──
+// ── Data Loading ──
 async function loadProjectData() {
   try {
-    const [state, progress, agentsMd, prd, gitLog] = await Promise.all([
+    const [state, progress, agentsMd, prd, gitLog, tasks, logs] = await Promise.all([
       fetch('/api/state').then(r => r.json()),
       fetch('/api/progress').then(r => r.json()),
       fetch('/api/agents-md').then(r => r.json()),
       fetch('/api/prd').then(r => r.json()),
       fetch('/api/git-log').then(r => r.json()),
+      fetch('/api/tasks').then(r => r.json()),
+      fetch('/api/logs').then(r => r.json()),
     ]);
-
     if (state) updateMetrics(state);
     elProgress.textContent = progress.content || 'No progress file yet';
     elAgentsMd.textContent = agentsMd.content || 'No AGENTS.md yet';
     if (prd.content) elPrdEditor.value = prd.content;
     renderGitTimeline(gitLog);
-  } catch (e) {
-    console.error('Failed to load project data:', e);
-  }
+    renderTaskGraph(tasks);
+    renderTaskGraphFull(tasks);
+    renderIterationLogs(logs);
+  } catch (e) { console.error('Load failed:', e); }
 }
 
-function updateMetrics(state) {
-  if (!state) return;
-  elIteration.textContent = `${state.iteration || 0} / ${state.maxIterations || 50}`;
-  const active = state.active;
-  const success = state.success;
-  if (active) {
-    elMetricStatus.textContent = '🟢 Active';
+function updateMetrics(s) {
+  // Always respect activeOp first — even if state file is null
+  if (activeOp) {
+    const opLabels = { init: '🔄 Building...', iterate: '🔄 Iterating...', plan: '📋 Creating PRD...', review: '🔍 Reviewing...', reset: '🗑 Resetting...' };
+    elMetricStatus.textContent = opLabels[activeOp] || '🟢 Running';
     elMetricStatus.style.color = 'var(--accent-green)';
-  } else if (success) {
-    elMetricStatus.textContent = '✅ Done';
-    elMetricStatus.style.color = 'var(--accent-green)';
-  } else {
-    elMetricStatus.textContent = '⏸️ Stopped';
-    elMetricStatus.style.color = 'var(--accent-yellow)';
   }
-  const cost = state.metrics?.estimatedCostUsd || 0;
-  elCost.textContent = `$${Number(cost).toFixed(2)}`;
-  const stalls = state.metrics?.stalls || 0;
+  if (!s) return;
+  const iter = s.iteration || 0;
+  const uiMax = parseInt($('#input-max-iter')?.value);
+  const max = (uiMax && uiMax !== 50) ? uiMax : (s.maxIterations || 50);
+  elIteration.textContent = `${iter} / ${max}`;
+  elIterBar.style.width = `${Math.round((iter/max)*100)}%`;
+  // Only update status from state file if no active operation
+  if (!activeOp) {
+    // Don't overwrite "Done" if it was set by completion promise detection
+    const currentStatus = elMetricStatus.textContent;
+    if (currentStatus === '✅ Done') {
+      // keep it
+    } else if (s.active) {
+      elMetricStatus.textContent = '🟢 Active';
+      elMetricStatus.style.color = 'var(--accent-green)';
+    } else if (s.success) {
+      elMetricStatus.textContent = '✅ Done';
+      elMetricStatus.style.color = 'var(--accent-green)';
+    } else if (iter > 0) {
+      elMetricStatus.textContent = '⏸️ Idle';
+      elMetricStatus.style.color = 'var(--text-dim)';
+    } else {
+      elMetricStatus.textContent = '—';
+      elMetricStatus.style.color = 'var(--text-dim)';
+    }
+  }
+  elCost.textContent = `$${Number(s.metrics?.estimatedCostUsd || 0).toFixed(2)}`;
+  const stalls = s.metrics?.stalls || 0;
   elStalls.textContent = `${stalls} / 3`;
   elStalls.style.color = stalls >= 2 ? 'var(--accent-red)' : stalls >= 1 ? 'var(--accent-yellow)' : 'var(--text)';
-  elBranch.textContent = state.branch || '—';
+  elBranch.textContent = s.branch || '—';
 }
 
 function renderGitTimeline(commits) {
-  if (!commits || !commits.length) {
-    elGitTimeline.innerHTML = '<div class="feed-empty">No commits yet</div>';
-    return;
-  }
-  elGitTimeline.innerHTML = commits.map(c => `
-    <div class="commit-entry">
-      <div class="commit-dot"></div>
-      <div>
-        <span class="commit-hash">${(c.hash || '').slice(0, 7)}</span>
-        <span class="commit-msg">${escapeHtml(c.message || '')}</span>
-        <div class="commit-date">${c.date || ''}</div>
-      </div>
-    </div>
-  `).join('');
+  if (!commits?.length) { elGitTimeline.textContent = ''; const e = document.createElement('div'); e.className = 'feed-empty'; e.textContent = 'No commits yet'; elGitTimeline.appendChild(e); return; }
+  elGitTimeline.textContent = '';
+  commits.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'commit-entry';
+    const dot = document.createElement('div');
+    dot.className = 'commit-dot';
+    const info = document.createElement('div');
+    const hash = document.createElement('span');
+    hash.className = 'commit-hash';
+    hash.textContent = (c.hash || '').slice(0, 7);
+    const msg = document.createElement('span');
+    msg.className = 'commit-msg';
+    msg.textContent = c.message || '';
+    const date = document.createElement('div');
+    date.className = 'commit-date';
+    date.textContent = c.date || '';
+    info.appendChild(hash);
+    info.appendChild(msg);
+    info.appendChild(date);
+    row.appendChild(dot);
+    row.appendChild(info);
+    elGitTimeline.appendChild(row);
+  });
 }
+
+function renderTaskItems(container, data) {
+  container.textContent = '';
+  if (!data?.tasks?.length) { const e = document.createElement('div'); e.className = 'feed-empty'; e.textContent = 'No task graph yet'; container.appendChild(e); return; }
+  const tasks = data.tasks;
+  const done = tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
+  const pending = tasks.filter(t => t.status === 'pending' || t.status === 'todo' || !t.status).length;
+  const blocked = tasks.filter(t => t.status === 'blocked').length;
+  const total = tasks.length;
+  const pct = Math.round((done / total) * 100);
+  elMetricTasks.textContent = `${done}/${total} (${pct}%)`;
+
+  const summary = document.createElement('div');
+  summary.className = 'task-summary';
+  summary.textContent = `${done}/${tasks.length} done (${pct}%) | `;
+  const pendSpan = document.createElement('span');
+  pendSpan.style.color = 'var(--accent-yellow)';
+  pendSpan.textContent = pending;
+  summary.appendChild(pendSpan);
+  summary.appendChild(document.createTextNode(' pending | '));
+  const blockSpan = document.createElement('span');
+  blockSpan.style.color = 'var(--accent-red)';
+  blockSpan.textContent = blocked;
+  summary.appendChild(blockSpan);
+  summary.appendChild(document.createTextNode(' blocked'));
+  container.appendChild(summary);
+
+  tasks.forEach(t => {
+    const icon = t.status === 'done' ? '✅' : t.status === 'blocked' ? '🚫' : '⬜';
+    let pri = t.priority || 'medium';
+    if (typeof pri === 'number') pri = pri <= 2 ? 'high' : pri <= 4 ? 'medium' : 'low';
+    const row = document.createElement('div');
+    row.className = `task-item ${t.status}`;
+    const elIcon = document.createElement('span');
+    elIcon.className = 'task-status';
+    elIcon.textContent = icon;
+    const elPri = document.createElement('span');
+    elPri.className = `task-priority ${pri}`;
+    elPri.textContent = pri.slice(0, 3);
+    const elDesc = document.createElement('span');
+    elDesc.className = 'task-desc';
+    elDesc.textContent = t.description || t.title || '';
+    const elCat = document.createElement('span');
+    elCat.className = 'task-cat';
+    elCat.textContent = t.category || '';
+    const elIter = document.createElement('span');
+    elIter.className = 'task-iter';
+    elIter.textContent = t.iteration ? 'iter ' + t.iteration : '';
+    row.appendChild(elIcon);
+    row.appendChild(elPri);
+    row.appendChild(elDesc);
+    row.appendChild(elCat);
+    row.appendChild(elIter);
+    container.appendChild(row);
+  });
+}
+function renderTaskGraph(data) { renderTaskItems($('#tasks-graph'), data); }
+function renderTaskGraphFull(data) { renderTaskItems($('#tasks-graph-full'), data); }
+
+function renderIterationLogs(logs) {
+  const el = $('#iteration-logs');
+  if (!logs?.length) { el.textContent = ''; const e = document.createElement('div'); e.className = 'feed-empty'; e.textContent = 'No iteration logs yet. Logs are created when using ralph-kiro CLI (not Studio ACP mode). Use the Agent Feed tab for live output.'; el.appendChild(e); return; }
+  el.textContent = '';
+  logs.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'log-name';
+    nameSpan.textContent = '📄 ' + l.name;
+    const sizeSpan = document.createElement('span');
+    sizeSpan.className = 'log-size';
+    sizeSpan.textContent = (l.size / 1024).toFixed(1) + ' KB';
+    div.appendChild(nameSpan);
+    div.appendChild(sizeSpan);
+    div.addEventListener('click', () => viewLog(l.name));
+    el.appendChild(div);
+  });
+}
+
+async function viewLog(name) {
+  try {
+    const data = await fetch(`/api/logs/${encodeURIComponent(name)}`).then(r => r.json());
+    if (!data.content) return;
+    const modal = document.createElement('div');
+    modal.className = 'log-modal';
+    const content = document.createElement('div');
+    content.className = 'log-modal-content';
+    const header = document.createElement('div');
+    header.className = 'log-modal-header';
+    const title = document.createElement('span');
+    title.textContent = name;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'log-modal-close';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => modal.remove());
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    const body = document.createElement('div');
+    body.className = 'log-modal-body';
+    body.textContent = data.content;
+    content.appendChild(header);
+    content.appendChild(body);
+    modal.appendChild(content);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+  } catch {}
+}
+window.viewLog = viewLog;
+
+// ── UI Lock (disable inputs during operations) ──
+const actionBtns = ['#btn-set-cwd', '#btn-connect-acp', '#btn-init', '#btn-iterate', '#btn-plan', '#btn-review', '#btn-reset', '#btn-generate-prd', '#btn-run-review'];
+const actionInputs = ['#input-cwd', '#input-prompt', '#input-max-iter', '#input-max-cost', '#input-delay', '#input-agent', '#input-plan-desc', '#select-aws-profile', '#select-branch', '#prd-editor'];
+
+function lockUI() {
+  actionBtns.forEach(s => { const el = $(s); if (el) el.disabled = true; });
+  actionInputs.forEach(s => { const el = $(s); if (el) el.disabled = true; });
+}
+function unlockUI() {
+  actionBtns.forEach(s => { const el = $(s); if (el) el.disabled = false; });
+  actionInputs.forEach(s => { const el = $(s); if (el) el.disabled = false; });
+  // Cancel stays disabled unless a prompt is running
+  $('#btn-cancel').disabled = true;
+}
+
+// ── Dark/Light Theme Toggle ──
+function initTheme() {
+  const saved = localStorage.getItem('ralph-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  $('#btn-theme').textContent = saved === 'dark' ? '☀️' : '🌙';
+}
+$('#btn-theme').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('ralph-theme', next);
+  $('#btn-theme').textContent = next === 'dark' ? '☀️' : '🌙';
+});
+initTheme();
 
 // ── Button Handlers ──
 
-// Set project directory
 $('#btn-set-cwd').addEventListener('click', async () => {
   const cwd = $('#input-cwd').value.trim();
   if (!cwd) return;
+  lockUI();
   try {
-    const res = await fetch('/api/set-cwd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cwd })
-    });
+    const res = await fetch('/api/set-cwd', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cwd}) });
     const data = await res.json();
-    if (data.ok) {
-      appendFeed('system', `Project set to: ${data.cwd}`);
-      loadProjectData();
-    } else {
-      appendFeed('error', data.error || 'Failed to set directory');
-    }
-  } catch (e) {
-    appendFeed('error', e.message);
-  }
+    if (data.ok) { appendFeed('system', `Project: ${data.cwd}`); await loadProjectData(); setStep(2); }
+    else appendFeed('error', data.error || 'Failed');
+  } catch (e) { appendFeed('error', e.message); }
+  unlockUI();
 });
 
-// Connect ACP
 $('#btn-connect-acp').addEventListener('click', () => {
   const cwd = $('#input-cwd').value.trim();
-  if (!cwd) {
-    appendFeed('error', 'Set a project directory first');
-    return;
-  }
-  appendFeed('system', 'Starting ACP connection...');
+  if (!cwd) { appendFeed('error', 'Set a project directory first'); return; }
+  lockUI();
+  elMetricStatus.textContent = '🔌 Connecting...'; elMetricStatus.style.color = 'var(--accent)';
+  elStatus.textContent = 'connecting'; elStatus.className = 'status-badge running';
+  appendFeed('system', 'Starting ACP session...');
   send({ action: 'init_acp', cwd });
 });
 
-// Init & Iterate
 $('#btn-init').addEventListener('click', () => {
   const prompt = $('#input-prompt').value.trim();
   if (!prompt) return;
-  if (!acpReady) {
-    appendFeed('error', 'Connect ACP first');
-    return;
-  }
-
+  if (!acpReady) { appendFeed('error', 'Connect ACP first'); return; }
+  lockUI();
+  const maxIter = $('#input-max-iter').value || 50;
+  const maxCost = $('#input-max-cost').value || '';
+  const awsProfile = $('#select-aws-profile').value || 'default';
+  const branch = $('#select-branch').value;
   const initPrompt = `[Ralph Loop - Init]
+You are starting a new Ralph loop. AWS_PROFILE=${awsProfile}. Max iterations: ${maxIter}.${maxCost ? ' Max cost: $'+maxCost+'.' : ''}${branch === 'none' ? ' Do NOT create a branch.' : ''}
 
-You are starting a new Ralph loop. First:
-1. Initialize git repo if not already done
-2. Create AGENTS.md knowledge base if it doesn't exist
-3. Create .kiro/ralph-state.json with iteration 0
-
-Then begin working on:
+Begin working on:
 ${prompt}
 
-Follow the Ralph methodology: read progress.txt, choose highest priority task, implement with feedback loops, commit, update progress.txt and AGENTS.md.
-
+Follow the Ralph methodology: read progress.txt, AGENTS.md, .kiro/tasks.json. Choose highest priority task, implement with feedback loops, commit, update progress.
 Output <promise>DONE</promise> ONLY when ALL tasks are genuinely complete.`;
-
-  elFeedStatus.textContent = 'running';
-  elFeedStatus.className = 'feed-badge active';
+  elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
   $('#btn-cancel').disabled = false;
-  appendFeed('system', `Starting loop: ${prompt.slice(0, 80)}...`);
-  send({ action: 'prompt', text: initPrompt });
+  
+  appendFeed('system', `▶ Init: ${prompt.slice(0, 80)}...`);
+  activeOp = 'init';
+  setStep(5);
+  elMetricStatus.textContent = '🔄 Building...'; elMetricStatus.style.color = 'var(--accent-green)';
+  send({ action: 'prompt', text: initPrompt, initTasks: true, maxIterations: parseInt(maxIter), prompt: prompt });
+  // unlockUI happens on prompt_complete
 });
 
-// Continue Iterate
 $('#btn-iterate').addEventListener('click', () => {
-  if (!acpReady) {
-    appendFeed('error', 'Connect ACP first');
-    return;
-  }
-
-  const iterPrompt = `[Ralph Loop - Continue]
-
-Continue the Ralph loop. Read progress.txt and AGENTS.md to see what's done.
-Choose the next highest priority task and implement it.
-Follow feedback loops (tests, types, lint) before committing.
-Update progress.txt and AGENTS.md after each task.
-
-Output <promise>DONE</promise> ONLY when ALL tasks are genuinely complete.`;
-
-  elFeedStatus.textContent = 'running';
-  elFeedStatus.className = 'feed-badge active';
+  if (!acpReady) { appendFeed('error', 'Connect ACP first'); return; }
+  lockUI();
+  elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
   $('#btn-cancel').disabled = false;
-  appendFeed('system', 'Continuing iteration...');
-  send({ action: 'prompt', text: iterPrompt });
+  
+  appendFeed('system', '⏭ Continuing iteration...');
+  activeOp = 'iterate';
+  elMetricStatus.textContent = '🔄 Iterating...'; elMetricStatus.style.color = 'var(--accent-green)';
+  send({ action: 'prompt', text: `[Ralph Loop - Continue]\nContinue the Ralph loop. Read progress.txt, AGENTS.md, .kiro/tasks.json. Pick next pending task. Implement, test, commit, update progress.\nOutput <promise>DONE</promise> ONLY when ALL tasks are genuinely complete.` });
 });
 
-// Judge Review
+$('#btn-plan').addEventListener('click', () => {
+  const desc = $('#input-prompt').value.trim() || $('#input-plan-desc')?.value?.trim();
+  if (!desc) { appendFeed('error', 'Enter a description first'); return; }
+  if (!acpReady) { appendFeed('error', 'Connect ACP first'); return; }
+  lockUI();
+  elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
+  $('#btn-cancel').disabled = false;
+  
+  appendFeed('system', `📋 Generating PRD: ${desc.slice(0, 60)}...`);
+  activeOp = 'plan';
+  elMetricStatus.textContent = '📋 Creating PRD...'; elMetricStatus.style.color = 'var(--accent)';
+  send({ action: 'prompt', text: `Generate a structured prd.json from this description. Output ONLY the JSON. Write it to prd.json.\n\nDescription: ${desc}\n\nFormat: {"name":"...","description":"...","requirements":[{"id":"1","category":"Setup","tasks":["..."],"priority":"high"}],"success_criteria":["..."],"tech_stack":["..."]}` });
+});
+
 $('#btn-review').addEventListener('click', () => {
-  if (!acpReady) {
-    appendFeed('error', 'Connect ACP first');
-    return;
-  }
-
-  const reviewPrompt = `You are a JUDGE reviewing the current state of this project. Do NOT make any changes.
-
-YOUR TASK:
-1. Read progress.txt to see what has been completed
-2. Read prd.json or prd.md if they exist to see the full requirements
-3. Review the codebase to assess current state
-
-OUTPUT A REPORT:
-- Requirements met (list each with ✅ or ❌)
-- Code quality assessment
-- Estimated completion percentage
-- Remaining work summary
-- Risks or blockers
-
-Do NOT modify any files. This is a read-only review.`;
-
-  // Switch to review panel
+  if (!acpReady) { appendFeed('error', 'Connect ACP first'); return; }
+  lockUI();
   $$('.nav-btn').forEach(b => b.classList.remove('active'));
   $('[data-panel="review"]').classList.add('active');
   $$('.panel').forEach(p => p.classList.remove('active'));
   $('#panel-review').classList.add('active');
-
-  elReviewOutput.innerHTML = '<div class="feed-entry system">Running judge review...</div>';
-  send({ action: 'prompt', text: reviewPrompt });
+  elFeedStatus.textContent = 'running'; elFeedStatus.className = 'feed-badge active';
+  $('#btn-cancel').disabled = false;
+  
+  elReviewOutput.textContent = '';
+  const reviewMsg = document.createElement('div');
+  reviewMsg.className = 'feed-entry system';
+  reviewMsg.textContent = 'Running judge review...';
+  elReviewOutput.appendChild(reviewMsg);
+  activeOp = 'review';
+  elMetricStatus.textContent = '🔍 Reviewing...'; elMetricStatus.style.color = 'var(--accent-purple)';
+  send({ action: 'prompt', text: `You are a JUDGE. Do NOT make changes. Read progress.txt, prd.json/prd.md, .kiro/tasks.json, and the codebase. Output: requirements met (✅/❌), code quality, completion %, remaining work, risks.` });
 });
 
-// Cancel
 $('#btn-cancel').addEventListener('click', () => {
   send({ action: 'cancel' });
-  appendFeed('system', 'Cancellation requested');
-  $('#btn-cancel').disabled = true;
+  appendFeed('system', '⏹ Cancelled');
+  activeOp = null;
+  unlockUI();
 });
 
-// Reset
 $('#btn-reset').addEventListener('click', () => {
-  if (confirm('Reset Ralph state? This clears .kiro/ralph-state.json')) {
-    if (acpReady) {
-      send({ action: 'prompt', text: 'Delete the file .kiro/ralph-state.json if it exists. Say "State cleared."' });
-    }
-    appendFeed('system', 'Reset requested');
+  if (confirm('Reset Ralph state?')) {
+    lockUI();
+    if (acpReady) send({ action: 'prompt', text: 'Delete .kiro/ralph-state.json and .kiro/tasks.json if they exist. Say "State cleared."' });
+    appendFeed('system', '🗑 Reset');
+    // unlockUI on prompt_complete
   }
 });
 
-// Generate PRD
-$('#btn-plan').addEventListener('click', () => {
-  const desc = $('#input-plan').value.trim();
+$('#btn-run-review')?.addEventListener('click', () => $('#btn-review').click());
+$('#btn-back-to-dashboard')?.addEventListener('click', () => {
+  setStep(5);
+  $$('.nav-btn').forEach(b => b.classList.remove('active'));
+  $('[data-panel="dashboard"]').classList.add('active');
+  $$('.panel').forEach(p => p.classList.remove('active'));
+  $('#panel-dashboard').classList.add('active');
+});
+$('#btn-generate-prd')?.addEventListener('click', () => {
+  const desc = $('#input-plan-desc').value.trim();
   if (!desc) return;
-  if (!acpReady) {
-    appendFeed('error', 'Connect ACP first');
-    return;
-  }
-
-  const planPrompt = `Generate a structured prd.json file from this description. Output ONLY the JSON file content, no explanation.
-
-Description: ${desc}
-
-The prd.json should follow this format:
-{
-  "name": "Project Name",
-  "description": "What the project does",
-  "requirements": [
-    {"id": "1", "category": "Setup", "tasks": ["task1", "task2"], "priority": "high"},
-    {"id": "2", "category": "Core", "tasks": ["task3"], "priority": "high"}
-  ],
-  "success_criteria": ["criterion 1", "criterion 2"],
-  "tech_stack": ["technology choices"]
-}
-
-Write the JSON to prd.json in the current directory.`;
-
-  appendFeed('system', `Generating PRD from: ${desc.slice(0, 60)}...`);
-  send({ action: 'prompt', text: planPrompt });
+  $('#input-prompt').value = desc;
+  $('#btn-plan').click();
 });
 
-// Run Review button in review panel
-$('#btn-run-review').addEventListener('click', () => {
-  $('#btn-review').click();
+$('#input-prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && e.metaKey) $('#btn-init').click(); });
+
+// Live update iteration metric when max-iterations changes (debounced)
+let maxIterDebounce;
+$('#input-max-iter').addEventListener('input', () => {
+  clearTimeout(maxIterDebounce);
+  maxIterDebounce = setTimeout(loadProjectData, 300);
 });
 
-// Enter key in prompt
-$('#input-prompt').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && e.metaKey) {
-    $('#btn-init').click();
-  }
+// PRD tab switching
+$$('.prd-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.prd-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
 });
 
 // ── Init ──
 connectWs();
-
-// Load data on page load
+loadAwsProfiles();
+initTheme();
+setStep(1);
 setTimeout(loadProjectData, 500);
+setInterval(() => { if (connected) loadProjectData(); }, 10000);
 
-// Periodic refresh
-setInterval(() => {
-  if (connected) loadProjectData();
-}, 10000);
+// Fast poll during active iteration — refresh task graph every 3s
+setInterval(async () => {
+  if (!connected || !activeOp) return;
+  try {
+    const tasks = await fetch('/api/tasks').then(r => r.json());
+    renderTaskGraph(tasks);
+    renderTaskGraphFull(tasks);
+  } catch {}
+}, 3000);

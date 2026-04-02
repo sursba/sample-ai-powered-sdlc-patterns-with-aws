@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import express from 'express';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unwatchFile, watchFile, writeFileSync } from 'fs';
 import { createServer } from 'http';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -24,7 +24,18 @@ let acpSessionId = null;
 let pendingRequests = new Map();
 let requestId = 0;
 let clients = new Set();
-let projectCwd = null;
+
+// Default project directory to where studio was launched
+let projectCwd = process.cwd();
+let currentIteration = 0; // track iterations in-memory
+
+// Save cwd to disk for persistence within a session (not auto-loaded on restart)
+const cwdFile = join(__dirname, '.last-cwd');
+
+function saveCwd(cwd) {
+  projectCwd = cwd;
+  try { writeFileSync(cwdFile, cwd); } catch {}
+}
 
 // ── REST API for project state ──
 
@@ -63,6 +74,68 @@ app.get('/api/prd', (req, res) => {
   res.json({ filename: null, content: null });
 });
 
+app.get('/api/tasks', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const f = join(cwd, '.kiro', 'tasks.json');
+  if (existsSync(f)) {
+    try { res.json(JSON.parse(readFileSync(f, 'utf-8'))); }
+    catch { res.json(null); }
+  } else {
+    res.json(null);
+  }
+});
+
+app.get('/api/logs', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const logDir = join(cwd, '.kiro', 'ralph-logs');
+  if (!existsSync(logDir)) return res.json([]);
+  try {
+    const files = readdirSync(logDir)
+      .filter(f => f.startsWith('iteration-') && f.endsWith('.log'))
+      .map(f => {
+        const st = statSync(join(logDir, f));
+        return { name: f, size: st.size, modified: st.mtime };
+      })
+      .sort((a, b) => b.name.localeCompare(a.name));
+    res.json(files);
+  } catch { res.json([]); }
+});
+
+app.get('/api/logs/:name', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const logDir = join(cwd, '.kiro', 'ralph-logs');
+  const name = req.params.name;
+  // Sanitize: only allow alphanumeric, dash, dot, underscore
+  if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
+    return res.status(400).json({ error: 'Invalid log name' });
+  }
+  const f = resolve(logDir, name);
+  if (!f.startsWith(resolve(logDir) + '/') || !existsSync(f)) {
+    return res.status(404).json({ error: 'Log not found' });
+  }
+  res.json({ content: readFileSync(f, 'utf-8') });
+});
+
+app.get('/api/skills', (req, res) => {
+  const cwd = projectCwd || process.cwd();
+  const skills = [];
+  for (const dir of ['skills', '.kiro/skills']) {
+    const skillsPath = join(cwd, dir);
+    if (!existsSync(skillsPath)) continue;
+    try {
+      for (const entry of readdirSync(skillsPath, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          const skillMd = join(skillsPath, entry.name, 'SKILL.md');
+          if (existsSync(skillMd)) {
+            skills.push({ name: entry.name, content: readFileSync(skillMd, 'utf-8') });
+          }
+        }
+      }
+    } catch {}
+  }
+  res.json(skills);
+});
+
 app.get('/api/git-log', (req, res) => {
   const cwd = projectCwd || process.cwd();
   const git = spawn('git', ['-P', 'log', '--oneline', '--format=%H|%s|%ai', '-20'], { cwd });
@@ -78,10 +151,40 @@ app.get('/api/git-log', (req, res) => {
   git.on('error', () => res.json([]));
 });
 
+app.get('/api/aws-profiles', (req, res) => {
+  const home = process.env.HOME || '';
+  const profiles = new Set(['default']);
+
+  // Read ~/.aws/config — profiles use [profile name] or [default]
+  const awsConfig = join(home, '.aws', 'config');
+  if (existsSync(awsConfig)) {
+    try {
+      const content = readFileSync(awsConfig, 'utf-8');
+      for (const m of content.matchAll(/\[profile\s+(.+?)\]/g)) profiles.add(m[1]);
+    } catch {}
+  }
+
+  // Read ~/.aws/credentials — profiles use [name] directly
+  const awsCreds = join(home, '.aws', 'credentials');
+  if (existsSync(awsCreds)) {
+    try {
+      const content = readFileSync(awsCreds, 'utf-8');
+      for (const m of content.matchAll(/^\[(.+?)\]/gm)) profiles.add(m[1]);
+    } catch {}
+  }
+
+  res.json([...profiles]);
+});
+
 app.post('/api/set-cwd', (req, res) => {
   const { cwd } = req.body;
-  if (cwd && existsSync(cwd)) {
-    projectCwd = resolve(cwd);
+  if (!cwd || typeof cwd !== 'string') {
+    return res.status(400).json({ error: 'Invalid directory' });
+  }
+  const resolved = resolve(cwd);
+  if (existsSync(resolved)) {
+    saveCwd(resolved);
+    watchProjectFiles();
     broadcast({ type: 'cwd_changed', cwd: projectCwd });
     res.json({ ok: true, cwd: projectCwd });
   } else {
@@ -125,7 +228,7 @@ function handleAcpMessage(msg) {
     if (msg.method.startsWith('fs/') || msg.method.startsWith('terminal/')) {
       const response = JSON.stringify({
         jsonrpc: '2.0', id: msg.id,
-        result: {}
+        error: { code: -32601, message: `Method not implemented: ${msg.method}` }
       });
       acpProcess.stdin.write(response + '\n');
     }
@@ -163,6 +266,7 @@ function startAcpProcess(cwd) {
     env: { ...process.env },
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  const thisProcess = acpProcess;
 
   let buffer = '';
   acpProcess.stdout.on('data', (data) => {
@@ -185,6 +289,11 @@ function startAcpProcess(cwd) {
   });
 
   acpProcess.on('close', (code) => {
+    if (acpProcess !== thisProcess) return;
+    for (const [id, pending] of pendingRequests) {
+      pending.reject(new Error(`ACP process exited with code ${code}`));
+    }
+    pendingRequests.clear();
     broadcast({ type: 'acp_closed', code });
     acpProcess = null;
     acpSessionId = null;
@@ -198,9 +307,11 @@ function startAcpProcess(cwd) {
 }
 
 async function initializeAcp(cwd) {
-  startAcpProcess(cwd);
-  // Wait a moment for process to start
-  await new Promise(r => setTimeout(r, 500));
+  const proc = startAcpProcess(cwd);
+  await new Promise((resolve, reject) => {
+    proc.on('spawn', resolve);
+    proc.on('error', reject);
+  });
 
   const initResult = await sendToAcp('initialize', {
     protocolVersion: 1,
@@ -244,6 +355,92 @@ function cancelSession() {
   broadcast({ type: 'session_cancelled' });
 }
 
+// ── Task Graph Generation ──
+
+function initStateFile(cwd, prompt, maxIterations) {
+  const dir = join(cwd, '.kiro');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const stateFile = join(dir, 'ralph-state.json');
+  const state = {
+    active: true,
+    iteration: 0,
+    maxIterations: maxIterations || 50,
+    completionPromise: 'DONE',
+    awsProfile: 'default',
+    branch: '',
+    maxCost: '',
+    prompt: prompt || '',
+    startedAt: new Date().toISOString(),
+    agent: 'ralph',
+    metrics: { totalIterations: 0, estimatedCostUsd: 0, stalls: 0 }
+  };
+  writeFileSync(stateFile, JSON.stringify(state, null, 2));
+  broadcast({ type: 'file_changed', file: 'ralph-state.json', content: JSON.stringify(state, null, 2) });
+}
+
+function markStateComplete(cwd) {
+  const stateFile = join(cwd, '.kiro', 'ralph-state.json');
+  if (!existsSync(stateFile)) return;
+  try {
+    const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
+    state.active = false;
+    state.success = true;
+    state.iteration = Math.max(state.iteration, 1);
+    state.metrics.totalIterations = state.iteration;
+    state.completedAt = new Date().toISOString();
+    writeFileSync(stateFile, JSON.stringify(state, null, 2));
+    broadcast({ type: 'file_changed', file: 'ralph-state.json', content: JSON.stringify(state, null, 2) });
+  } catch {}
+}
+
+function updateStateIteration(cwd, iteration) {
+  if (!cwd) return;
+  const stateFile = join(cwd, '.kiro', 'ralph-state.json');
+  if (!existsSync(stateFile)) return;
+  try {
+    const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
+    state.iteration = iteration;
+    state.metrics.totalIterations = iteration;
+    writeFileSync(stateFile, JSON.stringify(state, null, 2));
+    broadcast({ type: 'file_changed', file: 'ralph-state.json', content: JSON.stringify(state, null, 2) });
+  } catch {}
+}
+
+function generateTasksFromPrd(cwd) {
+  const tasksFile = join(cwd, '.kiro', 'tasks.json');
+  if (existsSync(tasksFile)) return;
+
+  const prdJson = join(cwd, 'prd.json');
+  if (!existsSync(prdJson)) return;
+
+  try {
+    const prd = JSON.parse(readFileSync(prdJson, 'utf-8'));
+    const tasks = [];
+    let taskId = 0;
+    const reqs = prd.requirements || [];
+    for (const req of reqs) {
+      if (typeof req === 'object' && req.tasks) {
+        const cat = req.category || 'General';
+        const priority = req.priority || 'medium';
+        for (const t of req.tasks) {
+          taskId++;
+          tasks.push({ id: taskId, description: typeof t === 'string' ? t : String(t), category: cat, priority, status: 'pending', depends_on: [], iteration: null, notes: '' });
+        }
+      } else if (typeof req === 'string') {
+        taskId++;
+        tasks.push({ id: taskId, description: req, category: 'General', priority: 'medium', status: 'pending', depends_on: [], iteration: null, notes: '' });
+      }
+    }
+    if (tasks.length > 0) {
+      const dir = join(cwd, '.kiro');
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      const graph = { version: 1, source: 'prd.json', tasks, success_criteria: prd.success_criteria || [] };
+      writeFileSync(tasksFile, JSON.stringify(graph, null, 2));
+      broadcast({ type: 'file_changed', file: 'tasks.json', content: JSON.stringify(graph, null, 2) });
+    }
+  } catch (e) { console.error('Failed to generate tasks:', e.message); }
+}
+
 // ── WebSocket handling ──
 
 function broadcast(data) {
@@ -268,14 +465,27 @@ wss.on('connection', (ws) => {
       switch (msg.action) {
         case 'init_acp': {
           const cwd = msg.cwd || projectCwd;
-          if (cwd) projectCwd = resolve(cwd);
+          if (cwd) saveCwd(resolve(cwd));
           await initializeAcp(projectCwd);
           await createSession(projectCwd);
           ws.send(JSON.stringify({ type: 'ready', sessionId: acpSessionId }));
           break;
         }
         case 'prompt': {
-          await sendPrompt(msg.text);
+          // Before first prompt, generate tasks.json and init state file
+          if (msg.initTasks && projectCwd) {
+            generateTasksFromPrd(projectCwd);
+            currentIteration = 0;
+            initStateFile(projectCwd, msg.prompt || '', msg.maxIterations || 50);
+          }
+          currentIteration++;
+          // Update iteration in state file
+          updateStateIteration(projectCwd, currentIteration);
+          const result = await sendPrompt(msg.text);
+          // Mark state complete after prompt finishes
+          if (msg.initTasks && projectCwd) {
+            markStateComplete(projectCwd);
+          }
           break;
         }
         case 'cancel': {
@@ -299,29 +509,39 @@ wss.on('connection', (ws) => {
 
 // ── File watchers for live updates ──
 
+let watchedFiles = [];
+
+function unwatchProjectFiles() {
+  for (const f of watchedFiles) {
+    unwatchFile(f);
+  }
+  watchedFiles = [];
+}
+
 function watchProjectFiles() {
+  unwatchProjectFiles();
   if (!projectCwd) return;
   const files = [
     join(projectCwd, '.kiro', 'ralph-state.json'),
+    join(projectCwd, '.kiro', 'tasks.json'),
     join(projectCwd, 'progress.txt'),
     join(projectCwd, 'AGENTS.md')
   ];
   for (const f of files) {
-    if (existsSync(f)) {
-      watchFile(f, { interval: 2000 }, () => {
-        try {
-          const content = readFileSync(f, 'utf-8');
-          const name = f.split('/').pop();
-          broadcast({ type: 'file_changed', file: name, content });
-        } catch {}
-      });
-    }
+    watchedFiles.push(f);
+    watchFile(f, { interval: 2000 }, () => {
+      try {
+        const content = readFileSync(f, 'utf-8');
+        const name = f.split('/').pop();
+        broadcast({ type: 'file_changed', file: name, content });
+      } catch {}
+    });
   }
 }
 
 // ── Start server ──
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n  🎛️  ralph-kiro Studio`);
   console.log(`  ─────────────────────`);
   console.log(`  http://localhost:${PORT}\n`);
