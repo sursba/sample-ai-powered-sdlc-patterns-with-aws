@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aidlc-mcp"
+version = "1.0.0"
+description = "AI-Driven Development Life Cycle MCP Server"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT-0"}
+keywords = ["mcp", "ai-dlc", "model-context-protocol", "ai-development"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "mcp~=1.16.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/aws-samples/sample-ai-powered-sdlc-patterns-with-aws"
+Repository = "https://github.com/aws-samples/sample-ai-powered-sdlc-patterns-with-aws"
+
+[project.scripts]
+aidlc-mcp = "aidlc_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aidlc_mcp"]
